@@ -1,0 +1,29 @@
+appId: com.devdock.app
+productName: DevDock
+directories:
+  buildResources: resources
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.*'
+  - '!{.eslintignore,.eslintrc.*,.prettierrc.*}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - node_modules/node-pty/**
+linux:
+  target:
+    - AppImage
+    - deb
+  maintainer: devdock
+  category: Development
+mac:
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
