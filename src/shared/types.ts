@@ -32,6 +32,8 @@ export interface ProjectConfig {
   color: string
   createdAt: string
   lastOpenedAt: string
+  parentId?: string // ID of parent group/folder
+  isGroup?: boolean // True if this is a folder group (not a runnable project)
 }
 
 export interface ProjectRuntime {
@@ -115,6 +117,33 @@ export interface DbConnectionState {
   serverVersion: string | null
   latencyMs: number | null
   lastCheckedAt: string
+}
+
+export interface DbTableInfo {
+  name: string
+  type: 'table' | 'view' | 'collection'
+  rowCount: number | null
+  sizeBytes: number | null
+}
+
+export interface DbColumnInfo {
+  name: string
+  dataType: string
+  nullable: boolean
+  isPrimaryKey: boolean
+  defaultValue: string | null
+}
+
+export interface DbTableData {
+  connectionId: string
+  tableName: string
+  columns: DbColumnInfo[]
+  rows: Record<string, unknown>[]
+  totalRows: number
+  page: number
+  pageSize: number
+  executionTimeMs: number
+  error: string | null
 }
 
 export interface DbQueryRequest {
@@ -233,6 +262,94 @@ export interface EnvTemplate {
 }
 
 // ==========================================
+// PRODUCTION METRICS
+// ==========================================
+
+export type PlatformProvider = 'render' | 'railway' | 'vercel' | 'aws'
+
+export type DeployStatus =
+  | 'live'
+  | 'building'
+  | 'deploying'
+  | 'failed'
+  | 'canceled'
+  | 'queued'
+  | 'crashed'
+  | 'unknown'
+
+export type ProviderConnectionStatus = 'connected' | 'disconnected' | 'error' | 'checking'
+
+export interface PlatformCredentials {
+  provider: PlatformProvider
+  token: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  region?: string
+  enabled: boolean
+  addedAt: string
+}
+
+export interface ProviderStatus {
+  provider: PlatformProvider
+  connectionStatus: ProviderConnectionStatus
+  error: string | null
+  lastCheckedAt: string
+  serviceCount: number
+}
+
+export interface ProdService {
+  id: string
+  provider: PlatformProvider
+  name: string
+  url: string | null
+  type: string
+  region: string | null
+  createdAt: string
+}
+
+export interface ProdDeployment {
+  id: string
+  serviceId: string
+  provider: PlatformProvider
+  status: DeployStatus
+  commitHash: string | null
+  commitMessage: string | null
+  branch: string | null
+  createdAt: string
+  finishedAt: string | null
+  duration: number | null
+}
+
+export interface ProdPerformanceMetrics {
+  serviceId: string
+  provider: PlatformProvider
+  timestamp: string
+  responseTimeMs: number | null
+  requestCount: number | null
+  errorRate: number | null
+  bandwidthBytes: number | null
+  functionInvocations: number | null
+}
+
+export interface ProdResourceMetrics {
+  serviceId: string
+  provider: PlatformProvider
+  timestamp: string
+  cpuPercent: number | null
+  memoryPercent: number | null
+  memoryUsedBytes: number | null
+  memoryLimitBytes: number | null
+  diskUsedBytes: number | null
+  diskLimitBytes: number | null
+}
+
+export interface ProductionMetricsSettings {
+  credentials: PlatformCredentials[]
+  pollingIntervalMs: number
+  enabled: boolean
+}
+
+// ==========================================
 // APP CONFIGURATION
 // ==========================================
 
@@ -241,6 +358,7 @@ export interface AppConfig {
   globalSettings: GlobalSettings
   envTemplates: EnvTemplate[]
   windowBounds: { x: number; y: number; width: number; height: number }
+  productionMetrics: ProductionMetricsSettings
 }
 
 export interface GlobalSettings {

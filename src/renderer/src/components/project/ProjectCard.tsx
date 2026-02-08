@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { Play, Square, RotateCw, Folder, Clock } from 'lucide-react'
+import { Play, Square, RotateCw, Folder, Clock, Trash2 } from 'lucide-react'
 import { ProjectConfig, ProjectRuntime } from '../../../../shared/types'
 import { useProcessStore } from '../../stores/process-store'
+import { useProjectStore } from '../../stores/project-store'
 import ProjectTypeBadge from './ProjectTypeBadge'
 import StatusIndicator from './StatusIndicator'
 import Button from '../ui/Button'
@@ -15,6 +16,7 @@ interface ProjectCardProps {
 export default function ProjectCard({ project, runtime }: ProjectCardProps) {
   const navigate = useNavigate()
   const { startServer, stopServer, restartServer } = useProcessStore()
+  const { removeProject } = useProjectStore()
 
   const status = runtime?.status || 'idle'
   const isRunning = status === 'running'
@@ -35,11 +37,37 @@ export default function ProjectCard({ project, runtime }: ProjectCardProps) {
     await restartServer(project.id)
   }
 
+  const handleDelete = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation()
+
+    if (isRunning) {
+      alert('Please stop the project before deleting it.')
+      return
+    }
+
+    const confirmed = confirm(
+      `Are you sure you want to remove "${project.name}" from DevDock?\n\nThis will only remove it from the list, not delete the actual files.`
+    )
+
+    if (confirmed) {
+      await removeProject(project.id)
+    }
+  }
+
   return (
     <div
       onClick={() => navigate(`/projects/${project.id}`)}
-      className="bg-dock-surface border border-dock-border rounded-xl p-4 hover:border-dock-accent/30 transition-all cursor-pointer group"
+      className="bg-dock-surface border border-dock-border rounded-xl p-4 hover:border-dock-accent/30 transition-all cursor-pointer group relative"
     >
+      {/* Delete Button - Shows on hover */}
+      <button
+        onClick={handleDelete}
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-dock-bg/80 border border-dock-border opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:border-red-500/50 transition-all"
+        title="Remove project"
+      >
+        <Trash2 size={14} className="text-dock-muted hover:text-red-500" />
+      </button>
+
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <div

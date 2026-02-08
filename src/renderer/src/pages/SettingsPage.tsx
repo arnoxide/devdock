@@ -149,7 +149,7 @@ export default function SettingsPage() {
           </p>
           <p>Desktop Development Environment Manager</p>
           <p>
-            Built with Electron + React + TypeScript
+            Built by theboxco | Masutha Arnold
           </p>
         </CardBody>
       </Card>

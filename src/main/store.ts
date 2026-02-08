@@ -15,7 +15,12 @@ const store = new Store<AppConfig>({
       closeToTray: false
     },
     envTemplates: [],
-    windowBounds: { x: 100, y: 100, width: 1400, height: 900 }
+    windowBounds: { x: 100, y: 100, width: 1400, height: 900 },
+    productionMetrics: {
+      credentials: [],
+      pollingIntervalMs: 30000,
+      enabled: false
+    }
   }
 })
 

@@ -23,4 +23,22 @@ export function registerDbHandlers(): void {
   ipcMain.handle(IPC.DB_RUN_QUERY, async (_event, req: DbQueryRequest) => {
     return dbMonitor.runQuery(req)
   })
+
+  ipcMain.handle(IPC.DB_LIST_TABLES, async (_event, connectionId: string) => {
+    return dbMonitor.listTables(connectionId)
+  })
+
+  ipcMain.handle(
+    IPC.DB_GET_TABLE_DATA,
+    async (_event, connectionId: string, tableName: string, page?: number, pageSize?: number) => {
+      return dbMonitor.getTableData(connectionId, tableName, page, pageSize)
+    }
+  )
+
+  ipcMain.handle(
+    IPC.DB_GET_TABLE_COLUMNS,
+    async (_event, connectionId: string, tableName: string) => {
+      return dbMonitor.getTableColumns(connectionId, tableName)
+    }
+  )
 }

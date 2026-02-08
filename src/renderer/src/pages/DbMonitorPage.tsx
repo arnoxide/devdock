@@ -5,6 +5,7 @@ import { DbConnectionConfig, DbType } from '../../../shared/types'
 import { useDbMonitorStore } from '../stores/db-monitor-store'
 import DbConnectionCard from '../components/monitors/DbConnectionCard'
 import QueryRunner from '../components/monitors/QueryRunner'
+import DataBrowser from '../components/monitors/DataBrowser'
 import Button from '../components/ui/Button'
 import Dialog from '../components/ui/Dialog'
 import Input from '../components/ui/Input'
@@ -17,6 +18,7 @@ export default function DbMonitorPage() {
     useDbMonitorStore()
   const [showAdd, setShowAdd] = useState(false)
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'browse' | 'query'>('browse')
   const [newConn, setNewConn] = useState({
     name: '',
     type: 'postgresql' as DbType,
@@ -82,10 +84,9 @@ export default function DbMonitorPage() {
             ))}
           </div>
 
-          {/* Query Runner */}
+          {/* Data Browser & Query Runner */}
           {connectedIds.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-dock-text">Query Runner</h2>
               <Select
                 label="Connection"
                 value={selectedConnection || ''}
@@ -99,10 +100,29 @@ export default function DbMonitorPage() {
                 ]}
               />
               {selectedConnection && (
-                <QueryRunner
-                  connectionId={selectedConnection}
-                  onRunQuery={(connId, query) => runQuery(connId, query)}
-                />
+                <div className="space-y-4">
+                  <Tabs
+                    tabs={[
+                      { id: 'browse', label: 'Browse Data' },
+                      { id: 'query', label: 'Query Runner' }
+                    ]}
+                    activeTab={activeTab}
+                    onChange={(tab) => setActiveTab(tab as 'browse' | 'query')}
+                  />
+                  {activeTab === 'browse' ? (
+                    <DataBrowser
+                      connectionId={selectedConnection}
+                      dbType={
+                        connections.find((c) => c.id === selectedConnection)?.type || 'postgresql'
+                      }
+                    />
+                  ) : (
+                    <QueryRunner
+                      connectionId={selectedConnection}
+                      onRunQuery={(connId, query) => runQuery(connId, query)}
+                    />
+                  )}
+                </div>
               )}
             </div>
           )}

@@ -42,6 +42,8 @@ export const IPC = {
   API_STOP_MONITORING: 'api:stop-monitoring',
   // Main -> Renderer pushes
   API_RESULT: 'api:result',
+  API_ENDPOINTS_DETECTED: 'api:endpoints-detected',
+  API_LOG_METRIC_UPDATE: 'api:log-metric-update',
 
   // Database Monitoring
   DB_ADD_CONNECTION: 'db:add-connection',
@@ -49,6 +51,9 @@ export const IPC = {
   DB_TEST_CONNECTION: 'db:test-connection',
   DB_GET_STATUS: 'db:get-status',
   DB_RUN_QUERY: 'db:run-query',
+  DB_LIST_TABLES: 'db:list-tables',
+  DB_GET_TABLE_DATA: 'db:get-table-data',
+  DB_GET_TABLE_COLUMNS: 'db:get-table-columns',
   // Main -> Renderer pushes
   DB_STATUS_CHANGED: 'db:status-changed',
 
@@ -72,6 +77,27 @@ export const IPC = {
   ENV_SAVE_TEMPLATE: 'env:save-template',
   ENV_LIST_TEMPLATES: 'env:list-templates',
   ENV_APPLY_TEMPLATE: 'env:apply-template',
+
+  // Production Metrics
+  PROD_SET_CREDENTIALS: 'prod:set-credentials',
+  PROD_REMOVE_CREDENTIALS: 'prod:remove-credentials',
+  PROD_GET_CREDENTIALS: 'prod:get-credentials',
+  PROD_TEST_CONNECTION: 'prod:test-connection',
+  PROD_GET_SERVICES: 'prod:get-services',
+  PROD_GET_DEPLOYMENTS: 'prod:get-deployments',
+  PROD_GET_DEPLOY_LOGS: 'prod:get-deploy-logs',
+  PROD_GET_PERFORMANCE: 'prod:get-performance',
+  PROD_GET_RESOURCES: 'prod:get-resources',
+  PROD_START_MONITORING: 'prod:start-monitoring',
+  PROD_STOP_MONITORING: 'prod:stop-monitoring',
+  PROD_TRIGGER_ROLLBACK: 'prod:trigger-rollback',
+  PROD_REFRESH_NOW: 'prod:refresh-now',
+  // Main -> Renderer pushes
+  PROD_SERVICES_UPDATE: 'prod:services-update',
+  PROD_DEPLOYMENTS_UPDATE: 'prod:deployments-update',
+  PROD_PERFORMANCE_UPDATE: 'prod:performance-update',
+  PROD_RESOURCES_UPDATE: 'prod:resources-update',
+  PROD_PROVIDER_STATUS_UPDATE: 'prod:provider-status-update',
 
   // Settings
   SETTINGS_GET: 'settings:get',

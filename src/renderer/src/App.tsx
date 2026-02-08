@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import ProjectListPage from './pages/ProjectListPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ApiMonitorPage from './pages/ApiMonitorPage'
+import ApiMetricsPage from './pages/ApiMetricsPage'
 import DbMonitorPage from './pages/DbMonitorPage'
 import PortManagerPage from './pages/PortManagerPage'
 import ProcessDashboardPage from './pages/ProcessDashboardPage'
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/projects" element={<ProjectListPage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
         <Route path="/api-monitor" element={<ApiMonitorPage />} />
+        <Route path="/api-monitor/metrics" element={<ApiMetricsPage />} />
         <Route path="/db-monitor" element={<DbMonitorPage />} />
         <Route path="/ports" element={<PortManagerPage />} />
         <Route path="/processes" element={<ProcessDashboardPage />} />

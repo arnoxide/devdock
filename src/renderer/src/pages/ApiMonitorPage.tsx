@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Activity, Trash2, RefreshCw } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { ApiEndpointConfig, HttpMethod } from '../../../shared/types'
@@ -13,6 +14,7 @@ import Card, { CardBody, CardHeader } from '../components/ui/Card'
 import EmptyState from '../components/ui/EmptyState'
 
 export default function ApiMonitorPage() {
+  const navigate = useNavigate()
   const { endpoints, results, histories, addEndpoint, removeEndpoint } = useApiMonitorStore()
   const [showAdd, setShowAdd] = useState(false)
   const [newEndpoint, setNewEndpoint] = useState({
@@ -54,10 +56,16 @@ export default function ApiMonitorPage() {
             Monitor your API endpoints health and performance
           </p>
         </div>
-        <Button onClick={() => setShowAdd(true)}>
-          <Plus size={16} />
-          Add Endpoint
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => navigate('/api-monitor/metrics')}>
+            <Activity size={16} />
+            View Metrics
+          </Button>
+          <Button onClick={() => setShowAdd(true)}>
+            <Plus size={16} />
+            Add Endpoint
+          </Button>
+        </div>
       </div>
 
       {endpoints.length === 0 ? (

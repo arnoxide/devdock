@@ -25,35 +25,168 @@ export function registerProjectHandlers(): void {
   })
 
   ipcMain.handle(IPC.PROJECT_ADD, async (_event, projectPath: string) => {
-    const detection = await projectDetector.detect(projectPath)
     const projects = store.get('projects', [])
+    const fs = await import('fs/promises')
+
+    console.log('[PROJECT_ADD] Adding project:', projectPath)
 
     // Check for duplicate
     if (projects.some((p: ProjectConfig) => p.path === projectPath)) {
       throw new Error('Project already exists')
     }
 
-    const project: ProjectConfig = {
-      id: uuid(),
-      name: path.basename(projectPath),
-      path: projectPath,
-      type: detection.type,
-      detectedScripts: detection.scripts,
-      startCommand: detection.startCommand,
-      packageManager: detection.packageManager,
-      customCommands: [],
-      envFiles: detection.envFiles,
-      apiEndpoints: [],
-      dbConnections: [],
-      color: '#3b82f6',
-      createdAt: new Date().toISOString(),
-      lastOpenedAt: new Date().toISOString()
+    try {
+      // Check if this folder contains multiple sub-projects
+      const entries = await fs.readdir(projectPath, { withFileTypes: true })
+      const subDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
+
+      console.log('[PROJECT_ADD] Found subdirectories:', subDirs.map(d => d.name))
+
+      const nestedProjects: Array<{ name: string; path: string; detection: any }> = []
+
+      // Check each subdirectory for project markers
+      for (const dir of subDirs) {
+        const subPath = path.join(projectPath, dir.name)
+        try {
+          // Check if directory has project markers
+          const subEntries = await fs.readdir(subPath)
+          const hasProjectMarker = subEntries.some(file =>
+            file === 'package.json' ||
+            file === 'requirements.txt' ||
+            file === 'Cargo.toml' ||
+            file === 'go.mod' ||
+            file === 'Pipfile' ||
+            file === 'pyproject.toml'
+          )
+
+          if (hasProjectMarker) {
+            const detection = await projectDetector.detect(subPath)
+            console.log(`[PROJECT_ADD] Detected ${dir.name}:`, detection.type)
+            nestedProjects.push({ name: dir.name, path: subPath, detection })
+          }
+        } catch (err) {
+          console.log(`[PROJECT_ADD] Error checking ${dir.name}:`, err)
+          // Skip directories that can't be read
+        }
+      }
+
+      console.log('[PROJECT_ADD] Found nested projects:', nestedProjects.length)
+
+      // If we found 2+ nested projects, create a group structure
+      if (nestedProjects.length >= 2) {
+        console.log('[PROJECT_ADD] Creating group structure')
+        const groupId = uuid()
+        const groupProject: ProjectConfig = {
+          id: groupId,
+          name: path.basename(projectPath),
+          path: projectPath,
+          type: 'unknown',
+          detectedScripts: {},
+          startCommand: '',
+          packageManager: null,
+          customCommands: [],
+          envFiles: [],
+          apiEndpoints: [],
+          dbConnections: [],
+          color: '#6366f1',
+          createdAt: new Date().toISOString(),
+          lastOpenedAt: new Date().toISOString(),
+          isGroup: true
+        }
+
+        projects.push(groupProject)
+
+        // Add each nested project
+        for (const nested of nestedProjects) {
+          const childProject: ProjectConfig = {
+            id: uuid(),
+            name: nested.name,
+            path: nested.path,
+            type: nested.detection.type,
+            detectedScripts: nested.detection.scripts,
+            startCommand: nested.detection.startCommand,
+            packageManager: nested.detection.packageManager,
+            customCommands: [],
+            envFiles: nested.detection.envFiles,
+            apiEndpoints: [],
+            dbConnections: [],
+            color: '#3b82f6',
+            createdAt: new Date().toISOString(),
+            lastOpenedAt: new Date().toISOString(),
+            parentId: groupId
+          }
+          projects.push(childProject)
+          console.log('[PROJECT_ADD] Added child project:', nested.name)
+        }
+
+        store.set('projects', projects)
+        console.log('[PROJECT_ADD] Group created successfully')
+        return groupProject
+      }
+
+      // If we found exactly 1 nested project, add just that project (not the parent folder)
+      if (nestedProjects.length === 1) {
+        console.log('[PROJECT_ADD] Found single nested project, adding it directly')
+        const nested = nestedProjects[0]
+        const project: ProjectConfig = {
+          id: uuid(),
+          name: nested.name,
+          path: nested.path,
+          type: nested.detection.type,
+          detectedScripts: nested.detection.scripts,
+          startCommand: nested.detection.startCommand,
+          packageManager: nested.detection.packageManager,
+          customCommands: [],
+          envFiles: nested.detection.envFiles,
+          apiEndpoints: [],
+          dbConnections: [],
+          color: '#3b82f6',
+          createdAt: new Date().toISOString(),
+          lastOpenedAt: new Date().toISOString()
+        }
+
+        projects.push(project)
+        store.set('projects', projects)
+        console.log('[PROJECT_ADD] Single nested project added successfully')
+        return project
+      }
+
+      // Otherwise, try to add the parent folder itself as a project
+      console.log('[PROJECT_ADD] No nested projects found, checking parent folder')
+      const detection = await projectDetector.detect(projectPath)
+
+      // Only add if it's a valid project (has project markers)
+      if (detection.type === 'unknown' && !detection.startCommand) {
+        console.log('[PROJECT_ADD] Parent folder is not a valid project')
+        throw new Error('This folder does not contain any valid projects. Please select a folder with a package.json, requirements.txt, or other project files.')
+      }
+
+      const project: ProjectConfig = {
+        id: uuid(),
+        name: path.basename(projectPath),
+        path: projectPath,
+        type: detection.type,
+        detectedScripts: detection.scripts,
+        startCommand: detection.startCommand,
+        packageManager: detection.packageManager,
+        customCommands: [],
+        envFiles: detection.envFiles,
+        apiEndpoints: [],
+        dbConnections: [],
+        color: '#3b82f6',
+        createdAt: new Date().toISOString(),
+        lastOpenedAt: new Date().toISOString()
+      }
+
+      projects.push(project)
+      store.set('projects', projects)
+
+      console.log('[PROJECT_ADD] Single project added successfully')
+      return project
+    } catch (error) {
+      console.error('[PROJECT_ADD] Error:', error)
+      throw error
     }
-
-    projects.push(project)
-    store.set('projects', projects)
-
-    return project
   })
 
   ipcMain.handle(IPC.PROJECT_REMOVE, async (_event, id: string) => {

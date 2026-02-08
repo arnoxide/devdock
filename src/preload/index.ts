@@ -54,9 +54,15 @@ const api = {
   // Database
   addDbConnection: (config: unknown) => ipcRenderer.invoke(IPC.DB_ADD_CONNECTION, config),
   removeDbConnection: (id: string) => ipcRenderer.invoke(IPC.DB_REMOVE_CONNECTION, id),
-  testDbConnection: (id: string) => ipcRenderer.invoke(IPC.DB_TEST_CONNECTION, id),
+  testDbConnection: (config: unknown) => ipcRenderer.invoke(IPC.DB_TEST_CONNECTION, config),
   getDbStatus: (id: string) => ipcRenderer.invoke(IPC.DB_GET_STATUS, id),
   runDbQuery: (req: unknown) => ipcRenderer.invoke(IPC.DB_RUN_QUERY, req),
+  listDbTables: (connectionId: string) =>
+    ipcRenderer.invoke(IPC.DB_LIST_TABLES, connectionId),
+  getDbTableData: (connectionId: string, tableName: string, page?: number, pageSize?: number) =>
+    ipcRenderer.invoke(IPC.DB_GET_TABLE_DATA, connectionId, tableName, page, pageSize),
+  getDbTableColumns: (connectionId: string, tableName: string) =>
+    ipcRenderer.invoke(IPC.DB_GET_TABLE_COLUMNS, connectionId, tableName),
 
   // System
   getSystemMetrics: () => ipcRenderer.invoke(IPC.SYSTEM_METRICS),
@@ -89,6 +95,8 @@ const api = {
   onTerminalData: createListener(IPC.TERMINAL_DATA),
   onTerminalExit: createListener(IPC.TERMINAL_EXIT),
   onApiResult: createListener(IPC.API_RESULT),
+  onApiEndpointsDetected: createListener(IPC.API_ENDPOINTS_DETECTED),
+  onLogMetricUpdate: createListener(IPC.API_LOG_METRIC_UPDATE),
   onDbStatusChanged: createListener(IPC.DB_STATUS_CHANGED),
   onSystemMetricsUpdate: createListener(IPC.SYSTEM_METRICS_UPDATE),
   onLogNewEntry: createListener(IPC.LOG_NEW_ENTRY)

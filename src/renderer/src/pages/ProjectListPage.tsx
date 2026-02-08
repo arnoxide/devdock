@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { FolderPlus, Search, FolderKanban } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import ProjectCard from '../components/project/ProjectCard'
+import ProjectGroup from '../components/project/ProjectGroup'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
 
@@ -25,6 +26,18 @@ export default function ProjectListPage() {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.type.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Organize projects into groups and standalone projects
+  const { groups, standaloneProjects } = useMemo(() => {
+    const groups = filtered.filter((p) => p.isGroup)
+    const standaloneProjects = filtered.filter((p) => !p.isGroup && !p.parentId)
+    return { groups, standaloneProjects }
+  }, [filtered])
+
+  // Get children for each group
+  const getGroupChildren = (groupId: string) => {
+    return filtered.filter((p) => p.parentId === groupId)
+  }
 
   return (
     <div className="space-y-6">
@@ -71,14 +84,29 @@ export default function ProjectListPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              runtime={runtimes[project.id]}
+        <div className="space-y-4">
+          {/* Display Groups */}
+          {groups.map((group) => (
+            <ProjectGroup
+              key={group.id}
+              group={group}
+              childProjects={getGroupChildren(group.id)}
+              runtimes={runtimes}
             />
           ))}
+
+          {/* Display Standalone Projects */}
+          {standaloneProjects.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {standaloneProjects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  runtime={runtimes[project.id]}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

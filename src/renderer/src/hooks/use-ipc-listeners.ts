@@ -49,6 +49,20 @@ export function useIpcListeners(): void {
     )
 
     cleanups.push(
+      window.api.onApiEndpointsDetected((endpoints: any) => {
+        useApiMonitorStore.getState().addDetectedEndpoints(endpoints)
+      })
+    )
+
+    cleanups.push(
+      window.api.onLogMetricUpdate((event: any) => {
+        if (event.type === 'event') {
+          useApiMonitorStore.getState().addLogEvent(event.payload)
+        }
+      })
+    )
+
+    cleanups.push(
       window.api.onDbStatusChanged((state: any) => {
         updateDbStatus(state)
       })

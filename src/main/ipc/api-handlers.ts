@@ -1,7 +1,13 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
-import { ApiEndpointConfig } from '../../shared/types'
+import { ApiEndpointConfig, ProjectConfig } from '../../shared/types'
 import { apiMonitor } from '../services/api-monitor'
+import { processManager } from '../services/process-manager'
+import { apiEndpointDetector } from '../services/api-endpoint-detector'
+import { logMetricAnalyzer } from '../services/log-metric-analyzer'
+import store from '../store'
+
+
 
 function getMainWindow(): BrowserWindow | null {
   const windows = BrowserWindow.getAllWindows()
@@ -44,5 +50,48 @@ export function registerApiHandlers(): void {
 
   ipcMain.handle(IPC.API_STOP_MONITORING, async (_event, endpointId: string) => {
     apiMonitor.stopMonitoring(endpointId)
+  })
+
+  // Listen for process port detection
+  processManager.on('port-detected', async ({ projectId, port }: { projectId: string; port: number }) => {
+    const projects = store.get('projects', []) as ProjectConfig[]
+    const project = projects.find((p) => p.id === projectId)
+
+    if (project) {
+      const window = getMainWindow()
+      if (!window || window.isDestroyed()) return
+
+      // 1. Send common endpoints immediately (fast)
+      const commonEndpoints = apiEndpointDetector.generateCommonEndpoints(
+        projectId,
+        project.name,
+        port
+      )
+      window.webContents.send(IPC.API_ENDPOINTS_DETECTED, commonEndpoints)
+
+      // 2. Scan project files for custom routes (slower)
+      try {
+        const detected = await apiEndpointDetector.scanProjectRoutes(project.path)
+        if (detected.length > 0) {
+          const scannedEndpoints = apiEndpointDetector.generateEndpointsFromScan(
+            projectId,
+            project.name,
+            port,
+            detected
+          )
+          window.webContents.send(IPC.API_ENDPOINTS_DETECTED, scannedEndpoints)
+        }
+      } catch (err) {
+        console.error('Error scanning project routes:', err)
+      }
+    }
+  })
+
+  // Listen for log analysis metrics
+  logMetricAnalyzer.on('metric-event', (event) => {
+    const window = getMainWindow()
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC.API_LOG_METRIC_UPDATE, { type: 'event', payload: event })
+    }
   })
 }

@@ -8,6 +8,7 @@ import { registerSystemHandlers } from './system-handlers'
 import { registerLogHandlers } from './log-handlers'
 import { registerEnvHandlers } from './env-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
+import { registerProdMetricsHandlers } from './prod-metrics-handlers'
 
 export function registerAllHandlers(): void {
   registerProjectHandlers()
@@ -20,4 +21,5 @@ export function registerAllHandlers(): void {
   registerLogHandlers()
   registerEnvHandlers()
   registerSettingsHandlers()
+  registerProdMetricsHandlers()
 }

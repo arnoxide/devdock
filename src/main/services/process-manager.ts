@@ -187,6 +187,11 @@ export class ProcessManager extends EventEmitter {
       if (match) {
         managed.port = parseInt(match[1], 10)
         this.updateStatus(managed.projectId, managed.status, managed.port)
+        // Emit port detected event for API endpoint detection
+        this.emit('port-detected', {
+          projectId: managed.projectId,
+          port: managed.port
+        })
         break
       }
     }
