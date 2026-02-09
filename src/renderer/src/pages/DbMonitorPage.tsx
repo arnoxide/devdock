@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Database } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { DbConnectionConfig, DbType } from '../../../shared/types'
@@ -14,8 +14,12 @@ import EmptyState from '../components/ui/EmptyState'
 import Tabs from '../components/ui/Tabs'
 
 export default function DbMonitorPage() {
-  const { connections, statuses, addConnection, removeConnection, testConnection, runQuery } =
-    useDbMonitorStore()
+  const connections = useDbMonitorStore((s) => s.connections)
+  const statuses = useDbMonitorStore((s) => s.statuses)
+  const addConnection = useDbMonitorStore((s) => s.addConnection)
+  const removeConnection = useDbMonitorStore((s) => s.removeConnection)
+  const testConnection = useDbMonitorStore((s) => s.testConnection)
+  const runQuery = useDbMonitorStore((s) => s.runQuery)
   const [showAdd, setShowAdd] = useState(false)
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'browse' | 'query'>('browse')
@@ -39,9 +43,9 @@ export default function DbMonitorPage() {
     setNewConn({ name: '', type: 'postgresql', connectionString: '' })
   }
 
-  const connectedIds = connections.filter(
-    (c) => statuses[c.id]?.status === 'connected'
-  )
+  const connectedIds = useMemo(() =>
+    connections.filter((c) => statuses[c.id]?.status === 'connected'),
+    [connections, statuses])
 
   return (
     <div className="space-y-6">

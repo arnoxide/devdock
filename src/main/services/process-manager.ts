@@ -2,10 +2,14 @@ import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { ProjectStatus, ProjectRuntime } from '../../shared/types'
 
-const PORT_PATTERNS = [
-  /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/,
-  /port\s+(\d+)/i,
-  /listening\s+(?:on\s+)?(?:port\s+)?(\d+)/i
+// Patterns ordered by confidence: server announcements first, URLs last
+// High-confidence: explicit server startup messages
+// Low-confidence: URLs that may appear in config/cors output
+const PORT_PATTERNS: { regex: RegExp; confidence: 'high' | 'low' }[] = [
+  { regex: /(?:running|started|listening|serving)\s+(?:on\s+)?(?:at\s+)?(?:port\s+)?(?:https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):)?(\d+)/i, confidence: 'high' },
+  { regex: /listening\s+(?:on\s+)?(?:port\s+)?(\d+)/i, confidence: 'high' },
+  { regex: /port\s+(\d+)/i, confidence: 'low' },
+  { regex: /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)/i, confidence: 'low' }
 ]
 
 interface ManagedProcess {
@@ -14,6 +18,7 @@ interface ManagedProcess {
   status: ProjectStatus
   startedAt: Date
   port: number | null
+  portConfidence: 'high' | 'low' | null
   command: string
   cwd: string
 }
@@ -41,6 +46,7 @@ export class ProcessManager extends EventEmitter {
       status: 'starting',
       startedAt: new Date(),
       port: null,
+      portConfidence: null,
       command,
       cwd
     }
@@ -181,17 +187,37 @@ export class ProcessManager extends EventEmitter {
   }
 
   private detectPort(managed: ManagedProcess, text: string): void {
-    if (managed.port !== null) return
-    for (const pattern of PORT_PATTERNS) {
-      const match = text.match(pattern)
+    // Ignore "port in use" messages
+    if (/is in use|already in use|EADDRINUSE/i.test(text)) return
+
+    // Skip lines that look like config/array output (CORS origins, env vars, etc.)
+    const stripped = text.replace(/\x1b\[[0-9;]*m/g, '')
+    if (/^\s*['"\[]/.test(stripped) || /allowed\s*origins/i.test(stripped)) return
+
+    for (const { regex, confidence } of PORT_PATTERNS) {
+      const match = stripped.match(regex)
       if (match) {
-        managed.port = parseInt(match[1], 10)
-        this.updateStatus(managed.projectId, managed.status, managed.port)
-        // Emit port detected event for API endpoint detection
-        this.emit('port-detected', {
-          projectId: managed.projectId,
-          port: managed.port
-        })
+        const port = parseInt(match[1], 10)
+        if (isNaN(port) || port < 1 || port > 65535) continue
+
+        // Update port if:
+        // 1. No port detected yet
+        // 2. New match is high-confidence and current is low-confidence
+        // 3. Same confidence but different port from a high-confidence source
+        const shouldUpdate =
+          managed.port === null ||
+          (confidence === 'high' && managed.portConfidence !== 'high') ||
+          (confidence === 'high' && managed.port !== port)
+
+        if (shouldUpdate && managed.port !== port) {
+          managed.port = port
+          managed.portConfidence = confidence
+          this.updateStatus(managed.projectId, managed.status, managed.port)
+          this.emit('port-detected', {
+            projectId: managed.projectId,
+            port: managed.port
+          })
+        }
         break
       }
     }

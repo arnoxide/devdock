@@ -38,6 +38,7 @@ export const IPC = {
   API_UPDATE_ENDPOINT: 'api:update-endpoint',
   API_CHECK_NOW: 'api:check-now',
   API_GET_HISTORY: 'api:get-history',
+  API_GET_ALL_ENDPOINTS: 'api:get-all-endpoints',
   API_START_MONITORING: 'api:start-monitoring',
   API_STOP_MONITORING: 'api:stop-monitoring',
   // Main -> Renderer pushes
@@ -54,6 +55,7 @@ export const IPC = {
   DB_LIST_TABLES: 'db:list-tables',
   DB_GET_TABLE_DATA: 'db:get-table-data',
   DB_GET_TABLE_COLUMNS: 'db:get-table-columns',
+  DB_GET_CONNECTIONS: 'db:get-connections',
   // Main -> Renderer pushes
   DB_STATUS_CHANGED: 'db:status-changed',
 
@@ -99,7 +101,39 @@ export const IPC = {
   PROD_RESOURCES_UPDATE: 'prod:resources-update',
   PROD_PROVIDER_STATUS_UPDATE: 'prod:provider-status-update',
 
+  // GitHub Integration
+  GITHUB_SET_TOKEN: 'github:set-token',
+  GITHUB_REMOVE_TOKEN: 'github:remove-token',
+  GITHUB_GET_CREDENTIALS: 'github:get-credentials',
+  GITHUB_TEST_CONNECTION: 'github:test-connection',
+  GITHUB_GET_REPOS: 'github:get-repos',
+  GITHUB_GET_PRS: 'github:get-prs',
+  GITHUB_GET_ISSUES: 'github:get-issues',
+  GITHUB_GET_ACTIONS: 'github:get-actions',
+  GITHUB_GET_NOTIFICATIONS: 'github:get-notifications',
+  GITHUB_MARK_NOTIFICATION_READ: 'github:mark-notification-read',
+  GITHUB_MARK_ALL_NOTIFICATIONS_READ: 'github:mark-all-notifications-read',
+  GITHUB_START_POLLING: 'github:start-polling',
+  GITHUB_STOP_POLLING: 'github:stop-polling',
+  // Main -> Renderer pushes
+  GITHUB_REPOS_UPDATE: 'github:repos-update',
+  GITHUB_PRS_UPDATE: 'github:prs-update',
+  GITHUB_ISSUES_UPDATE: 'github:issues-update',
+  GITHUB_ACTIONS_UPDATE: 'github:actions-update',
+  GITHUB_NOTIFICATIONS_UPDATE: 'github:notifications-update',
+
   // Settings
   SETTINGS_GET: 'settings:get',
-  SETTINGS_UPDATE: 'settings:update'
+  SETTINGS_UPDATE: 'settings:update',
+  SETTINGS_EXPORT: 'settings:export',
+  SETTINGS_RESET: 'settings:reset',
+
+  // Git operations
+  GIT_STATUS: 'git:status',
+  GIT_COMMIT: 'git:commit',
+  GIT_PUSH: 'git:push',
+  GIT_PULL: 'git:pull',
+  GIT_CHECK_REPO: 'git:check-repo',
+  GIT_INIT: 'git:init',
+  GIT_SYNC: 'git:sync'
 } as const

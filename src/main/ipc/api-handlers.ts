@@ -44,6 +44,10 @@ export function registerApiHandlers(): void {
     return apiMonitor.getHistory(endpointId)
   })
 
+  ipcMain.handle(IPC.API_GET_ALL_ENDPOINTS, async (_event) => {
+    return apiMonitor.getAllEndpoints()
+  })
+
   ipcMain.handle(IPC.API_START_MONITORING, async (_event, config: ApiEndpointConfig) => {
     apiMonitor.startMonitoring(config)
   })

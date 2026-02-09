@@ -7,7 +7,10 @@ import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
 
 export default function ProjectListPage() {
-  const { projects, runtimes, loadProjects, addProject } = useProjectStore()
+  const projects = useProjectStore((s) => s.projects)
+  const loadProjects = useProjectStore((s) => s.loadProjects)
+  const addProject = useProjectStore((s) => s.addProject)
+
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -21,11 +24,13 @@ export default function ProjectListPage() {
     }
   }
 
-  const filtered = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.type.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    return projects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.type && p.type.toLowerCase().includes(search.toLowerCase()))
+    )
+  }, [projects, search])
 
   // Organize projects into groups and standalone projects
   const { groups, standaloneProjects } = useMemo(() => {
@@ -34,10 +39,10 @@ export default function ProjectListPage() {
     return { groups, standaloneProjects }
   }, [filtered])
 
-  // Get children for each group
-  const getGroupChildren = (groupId: string) => {
-    return filtered.filter((p) => p.parentId === groupId)
-  }
+  // Get children for each group (memoized)
+  const getGroupChildren = useMemo(() => {
+    return (groupId: string) => filtered.filter((p) => p.parentId === groupId)
+  }, [filtered])
 
   return (
     <div className="space-y-6">
@@ -91,7 +96,6 @@ export default function ProjectListPage() {
               key={group.id}
               group={group}
               childProjects={getGroupChildren(group.id)}
-              runtimes={runtimes}
             />
           ))}
 
@@ -102,7 +106,6 @@ export default function ProjectListPage() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  runtime={runtimes[project.id]}
                 />
               ))}
             </div>

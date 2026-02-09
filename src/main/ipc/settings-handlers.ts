@@ -1,7 +1,8 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
 import { GlobalSettings } from '../../shared/types'
-import store from '../store'
+import store, { DEVELOPMENT_DEFAULTS } from '../store'
+import fs from 'fs'
 
 export function registerSettingsHandlers(): void {
   ipcMain.handle(IPC.SETTINGS_GET, async () => {
@@ -13,5 +14,25 @@ export function registerSettingsHandlers(): void {
     const updated = { ...current, ...settings }
     store.set('globalSettings', updated)
     return updated
+  })
+
+  ipcMain.handle(IPC.SETTINGS_EXPORT, async () => {
+    const settings = store.store
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export DevDock Configuration',
+      defaultPath: 'devdock-config.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+
+    if (filePath) {
+      fs.writeFileSync(filePath, JSON.stringify(settings, null, 2))
+      return true
+    }
+    return false
+  })
+
+  ipcMain.handle(IPC.SETTINGS_RESET, async () => {
+    store.set('globalSettings', DEVELOPMENT_DEFAULTS.globalSettings)
+    return DEVELOPMENT_DEFAULTS.globalSettings
   })
 }

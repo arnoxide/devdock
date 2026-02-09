@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderKanban,
@@ -21,9 +21,16 @@ import { useProcessStore } from '../stores/process-store'
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { projects, runtimes, loadProjects } = useProjectStore()
-  const { metrics, startMonitoring } = useSystemStore()
-  const { startServer, stopServer } = useProcessStore()
+  const projects = useProjectStore((s) => s.projects)
+  const runtimes = useProjectStore((s) => s.runtimes)
+  const loadProjects = useProjectStore((s) => s.loadProjects)
+
+  const metrics = useSystemStore((s) => s.metrics)
+  const startMonitoring = useSystemStore((s) => s.startMonitoring)
+
+  const startServer = useProcessStore((s) => s.startServer)
+  const stopServer = useProcessStore((s) => s.stopServer)
+
   const entries = useLogStore((s) => s.entries)
 
   useEffect(() => {
@@ -31,8 +38,11 @@ export default function DashboardPage() {
     startMonitoring()
   }, [])
 
-  const runningCount = Object.values(runtimes).filter((r) => r.status === 'running').length
-  const recentLogs = entries.slice(-8)
+  const runningCount = useMemo(() =>
+    Object.values(runtimes).filter((r) => r.status === 'running').length,
+    [runtimes])
+
+  const recentLogs = useMemo(() => entries.slice(-8), [entries])
 
   return (
     <div className="space-y-6">
@@ -206,13 +216,12 @@ export default function DashboardPage() {
                     {new Date(entry.timestamp).toLocaleTimeString()}
                   </span>
                   <span
-                    className={`px-1 rounded text-[10px] uppercase ${
-                      entry.level === 'error'
-                        ? 'bg-dock-red/10 text-dock-red'
-                        : entry.level === 'warn'
-                          ? 'bg-dock-yellow/10 text-dock-yellow'
-                          : 'bg-dock-accent/10 text-dock-accent'
-                    }`}
+                    className={`px-1 rounded text-[10px] uppercase ${entry.level === 'error'
+                      ? 'bg-dock-red/10 text-dock-red'
+                      : entry.level === 'warn'
+                        ? 'bg-dock-yellow/10 text-dock-yellow'
+                        : 'bg-dock-accent/10 text-dock-accent'
+                      }`}
                   >
                     {entry.level}
                   </span>

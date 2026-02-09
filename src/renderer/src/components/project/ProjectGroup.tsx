@@ -7,12 +7,12 @@ import ProjectCard from './ProjectCard'
 interface ProjectGroupProps {
     group: ProjectConfig
     childProjects: ProjectConfig[]
-    runtimes: Record<string, ProjectRuntime>
 }
 
-export default function ProjectGroup({ group, childProjects, runtimes }: ProjectGroupProps) {
-    const [isExpanded, setIsExpanded] = useState(true)
-    const { removeProject } = useProjectStore()
+export default function ProjectGroup({ group, childProjects }: ProjectGroupProps) {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const removeProject = useProjectStore((s) => s.removeProject)
+    const runtimes = useProjectStore((s) => s.runtimes)
 
     const handleDelete = async (e: React.MouseEvent): Promise<void> => {
         e.stopPropagation()
@@ -96,7 +96,6 @@ export default function ProjectGroup({ group, childProjects, runtimes }: Project
                         <ProjectCard
                             key={project.id}
                             project={project}
-                            runtime={runtimes[project.id]}
                         />
                     ))}
                 </div>

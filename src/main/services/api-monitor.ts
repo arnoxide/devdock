@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import store from '../store'
 import {
   ApiEndpointConfig,
   ApiEndpointResult,
@@ -11,9 +12,40 @@ const MAX_HISTORY = 100
 export class ApiMonitor extends EventEmitter {
   private intervals = new Map<string, NodeJS.Timeout>()
   private histories = new Map<string, ApiEndpointResult[]>()
+  private endpoints = new Map<string, ApiEndpointConfig>()
+
+  constructor() {
+    super()
+    this.loadEndpoints()
+  }
+
+  private loadEndpoints() {
+    const saved = store.get('apiMonitor.endpoints', []) as ApiEndpointConfig[]
+    saved.forEach((config) => {
+      this.endpoints.set(config.id, config)
+      if (config.enabled) {
+        this.startMonitoringInternal(config)
+      }
+    })
+  }
+
+  private saveEndpoints() {
+    const configs = Array.from(this.endpoints.values())
+    store.set('apiMonitor.endpoints', configs)
+  }
+
+  getAllEndpoints(): ApiEndpointConfig[] {
+    return Array.from(this.endpoints.values())
+  }
 
   startMonitoring(endpoint: ApiEndpointConfig): void {
-    this.stopMonitoring(endpoint.id)
+    this.endpoints.set(endpoint.id, endpoint)
+    this.saveEndpoints()
+    this.startMonitoringInternal(endpoint)
+  }
+
+  private startMonitoringInternal(endpoint: ApiEndpointConfig): void {
+    this.stopMonitoringInternal(endpoint.id)
 
     if (!endpoint.enabled) return
 
@@ -29,6 +61,32 @@ export class ApiMonitor extends EventEmitter {
   }
 
   stopMonitoring(endpointId: string): void {
+    const endpoint = this.endpoints.get(endpointId)
+    if (endpoint) {
+      // If stopping completely (removal), we remove it.
+      // But if enabled toggled off, we update config?
+      // Wait, startMonitoring handles update. 
+      // This method assumes "Delete Endpoint" or "Stop Monitoring" from IPC?
+      // IPC handles "Stop Monitoring" as temporary? Or removal?
+      // Looking at api-handlers.ts:
+      // IPC.API_REMOVE_ENDPOINT calls apiMonitor.stopMonitoring(id)
+      // IPC.API_STOP_MONITORING calls apiMonitor.stopMonitoring(id)
+      // IPC.API_UPDATE_ENDPOINT calls stop then start.
+
+      // If "Remove", we should delete from map. 
+      // If "Stop", we might just clear interval.
+      // Let's assume stopMonitoring is REMOVAL from monitoring list in this context?
+      // Wait, api-handlers distinguish?
+      // Handler: API_REMOVE_ENDPOINT -> stopMonitoring.
+      // If I delete from map here, it's gone forever.
+      // So yes, removal.
+      this.stopMonitoringInternal(endpointId)
+      this.endpoints.delete(endpointId)
+      this.saveEndpoints()
+    }
+  }
+
+  private stopMonitoringInternal(endpointId: string): void {
     const interval = this.intervals.get(endpointId)
     if (interval) {
       clearInterval(interval)

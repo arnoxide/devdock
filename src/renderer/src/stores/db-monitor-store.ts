@@ -24,6 +24,7 @@ interface DbMonitorStore {
   setConnections: (connections: DbConnectionConfig[]) => void
   loadTables: (connectionId: string) => Promise<void>
   loadTableData: (connectionId: string, tableName: string, page?: number, pageSize?: number) => Promise<void>
+  loadConnections: () => Promise<void>
 }
 
 export const useDbMonitorStore = create<DbMonitorStore>((set) => ({
@@ -118,5 +119,10 @@ export const useDbMonitorStore = create<DbMonitorStore>((set) => ({
         loadingData: { ...s.loadingData, [key]: false }
       }))
     }
+  },
+
+  loadConnections: async () => {
+    const connections = await window.api.getDbConnections()
+    set({ connections })
   }
 }))

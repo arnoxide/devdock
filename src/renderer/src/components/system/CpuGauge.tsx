@@ -6,7 +6,7 @@ interface CpuGaugeProps {
 export default function CpuGauge({ percent, cores }: CpuGaugeProps) {
   const circumference = 2 * Math.PI * 40
   const offset = circumference - (percent / 100) * circumference
-  const color = percent > 80 ? '#ef4444' : percent > 60 ? '#eab308' : '#22c55e'
+  const color = percent > 80 ? 'var(--dock-red)' : percent > 60 ? 'var(--dock-yellow)' : 'var(--dock-green)'
 
   return (
     <div className="flex flex-col items-center">
@@ -17,7 +17,7 @@ export default function CpuGauge({ percent, cores }: CpuGaugeProps) {
             cy="48"
             r="40"
             strokeWidth="6"
-            stroke="#2e3348"
+            stroke="var(--dock-border)"
             fill="transparent"
           />
           <circle

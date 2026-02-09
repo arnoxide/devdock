@@ -10,13 +10,15 @@ import { formatDistanceToNow } from 'date-fns'
 
 interface ProjectCardProps {
   project: ProjectConfig
-  runtime?: ProjectRuntime
 }
 
-export default function ProjectCard({ project, runtime }: ProjectCardProps) {
+export default function ProjectCard({ project }: ProjectCardProps) {
   const navigate = useNavigate()
-  const { startServer, stopServer, restartServer } = useProcessStore()
-  const { removeProject } = useProjectStore()
+  const runtime = useProjectStore((s) => s.runtimes[project.id])
+  const startServer = useProcessStore((s) => s.startServer)
+  const stopServer = useProcessStore((s) => s.stopServer)
+  const restartServer = useProcessStore((s) => s.restartServer)
+  const removeProject = useProjectStore((s) => s.removeProject)
 
   const status = runtime?.status || 'idle'
   const isRunning = status === 'running'

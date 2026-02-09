@@ -48,6 +48,7 @@ const api = {
   updateApiEndpoint: (config: unknown) => ipcRenderer.invoke(IPC.API_UPDATE_ENDPOINT, config),
   checkApiNow: (id: string) => ipcRenderer.invoke(IPC.API_CHECK_NOW, id),
   getApiHistory: (id: string) => ipcRenderer.invoke(IPC.API_GET_HISTORY, id),
+  getApiEndpoints: () => ipcRenderer.invoke(IPC.API_GET_ALL_ENDPOINTS),
   startApiMonitoring: (id: string) => ipcRenderer.invoke(IPC.API_START_MONITORING, id),
   stopApiMonitoring: (id: string) => ipcRenderer.invoke(IPC.API_STOP_MONITORING, id),
 
@@ -63,6 +64,7 @@ const api = {
     ipcRenderer.invoke(IPC.DB_GET_TABLE_DATA, connectionId, tableName, page, pageSize),
   getDbTableColumns: (connectionId: string, tableName: string) =>
     ipcRenderer.invoke(IPC.DB_GET_TABLE_COLUMNS, connectionId, tableName),
+  getDbConnections: () => ipcRenderer.invoke(IPC.DB_GET_CONNECTIONS),
 
   // System
   getSystemMetrics: () => ipcRenderer.invoke(IPC.SYSTEM_METRICS),
@@ -84,9 +86,60 @@ const api = {
   applyEnvTemplate: (templateId: string, projectId: string) =>
     ipcRenderer.invoke(IPC.ENV_APPLY_TEMPLATE, templateId, projectId),
 
+  // Production Metrics
+  setProdCredentials: (creds: unknown) => ipcRenderer.invoke(IPC.PROD_SET_CREDENTIALS, creds),
+  removeProdCredentials: (provider: string) =>
+    ipcRenderer.invoke(IPC.PROD_REMOVE_CREDENTIALS, provider),
+  getProdCredentials: () => ipcRenderer.invoke(IPC.PROD_GET_CREDENTIALS),
+  testProdConnection: (provider: string) =>
+    ipcRenderer.invoke(IPC.PROD_TEST_CONNECTION, provider),
+  getProdServices: () => ipcRenderer.invoke(IPC.PROD_GET_SERVICES),
+  getProdDeployments: (serviceId: string) =>
+    ipcRenderer.invoke(IPC.PROD_GET_DEPLOYMENTS, serviceId),
+  getProdDeployLogs: (provider: string, serviceId: string, deployId: string) =>
+    ipcRenderer.invoke(IPC.PROD_GET_DEPLOY_LOGS, provider, serviceId, deployId),
+  getProdPerformance: (serviceId: string) =>
+    ipcRenderer.invoke(IPC.PROD_GET_PERFORMANCE, serviceId),
+  getProdResources: (serviceId: string) =>
+    ipcRenderer.invoke(IPC.PROD_GET_RESOURCES, serviceId),
+  startProdMonitoring: () => ipcRenderer.invoke(IPC.PROD_START_MONITORING),
+  stopProdMonitoring: () => ipcRenderer.invoke(IPC.PROD_STOP_MONITORING),
+  triggerProdRollback: (provider: string, serviceId: string, deployId: string) =>
+    ipcRenderer.invoke(IPC.PROD_TRIGGER_ROLLBACK, provider, serviceId, deployId),
+  refreshProdNow: () => ipcRenderer.invoke(IPC.PROD_REFRESH_NOW),
+
+  // GitHub
+  setGitHubToken: (token: string) => ipcRenderer.invoke(IPC.GITHUB_SET_TOKEN, token),
+  removeGitHubToken: () => ipcRenderer.invoke(IPC.GITHUB_REMOVE_TOKEN),
+  getGitHubCredentials: () => ipcRenderer.invoke(IPC.GITHUB_GET_CREDENTIALS),
+  testGitHubConnection: (token?: string) =>
+    ipcRenderer.invoke(IPC.GITHUB_TEST_CONNECTION, token),
+  getGitHubRepos: () => ipcRenderer.invoke(IPC.GITHUB_GET_REPOS),
+  getGitHubPRs: () => ipcRenderer.invoke(IPC.GITHUB_GET_PRS),
+  getGitHubIssues: () => ipcRenderer.invoke(IPC.GITHUB_GET_ISSUES),
+  getGitHubActions: () => ipcRenderer.invoke(IPC.GITHUB_GET_ACTIONS),
+  getGitHubNotifications: () => ipcRenderer.invoke(IPC.GITHUB_GET_NOTIFICATIONS),
+  markGitHubNotificationRead: (threadId: string) =>
+    ipcRenderer.invoke(IPC.GITHUB_MARK_NOTIFICATION_READ, threadId),
+  markAllGitHubNotificationsRead: () =>
+    ipcRenderer.invoke(IPC.GITHUB_MARK_ALL_NOTIFICATIONS_READ),
+  startGitHubPolling: () => ipcRenderer.invoke(IPC.GITHUB_START_POLLING),
+  stopGitHubPolling: () => ipcRenderer.invoke(IPC.GITHUB_STOP_POLLING),
+
   // Settings
   getSettings: () => ipcRenderer.invoke(IPC.SETTINGS_GET),
   updateSettings: (settings: unknown) => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, settings),
+  exportSettings: () => ipcRenderer.invoke(IPC.SETTINGS_EXPORT),
+  resetSettings: () => ipcRenderer.invoke(IPC.SETTINGS_RESET),
+
+  // Git
+  gitStatus: (projectId: string) => ipcRenderer.invoke(IPC.GIT_STATUS, projectId),
+  gitCommit: (projectId: string, message: string) =>
+    ipcRenderer.invoke(IPC.GIT_COMMIT, { projectId, message }),
+  gitPush: (projectId: string) => ipcRenderer.invoke(IPC.GIT_PUSH, projectId),
+  gitPull: (projectId: string) => ipcRenderer.invoke(IPC.GIT_PULL, projectId),
+  gitInit: (projectId: string) => ipcRenderer.invoke(IPC.GIT_INIT, projectId),
+  gitSync: (projectId: string) => ipcRenderer.invoke(IPC.GIT_SYNC, projectId),
 
   // Event listeners (Main -> Renderer)
   onProcessOutput: createListener(IPC.PROCESS_OUTPUT),
@@ -99,7 +152,17 @@ const api = {
   onLogMetricUpdate: createListener(IPC.API_LOG_METRIC_UPDATE),
   onDbStatusChanged: createListener(IPC.DB_STATUS_CHANGED),
   onSystemMetricsUpdate: createListener(IPC.SYSTEM_METRICS_UPDATE),
-  onLogNewEntry: createListener(IPC.LOG_NEW_ENTRY)
+  onLogNewEntry: createListener(IPC.LOG_NEW_ENTRY),
+  onProdServicesUpdate: createListener(IPC.PROD_SERVICES_UPDATE),
+  onProdDeploymentsUpdate: createListener(IPC.PROD_DEPLOYMENTS_UPDATE),
+  onProdPerformanceUpdate: createListener(IPC.PROD_PERFORMANCE_UPDATE),
+  onProdResourcesUpdate: createListener(IPC.PROD_RESOURCES_UPDATE),
+  onProdProviderStatusUpdate: createListener(IPC.PROD_PROVIDER_STATUS_UPDATE),
+  onGitHubReposUpdate: createListener(IPC.GITHUB_REPOS_UPDATE),
+  onGitHubPRsUpdate: createListener(IPC.GITHUB_PRS_UPDATE),
+  onGitHubIssuesUpdate: createListener(IPC.GITHUB_ISSUES_UPDATE),
+  onGitHubActionsUpdate: createListener(IPC.GITHUB_ACTIONS_UPDATE),
+  onGitHubNotificationsUpdate: createListener(IPC.GITHUB_NOTIFICATIONS_UPDATE)
 }
 
 contextBridge.exposeInMainWorld('api', api)

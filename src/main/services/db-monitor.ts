@@ -10,6 +10,8 @@ import {
   DbTableData
 } from '../../shared/types'
 
+import store from '../store'
+
 interface ManagedConnection {
   config: DbConnectionConfig
   pgPool?: PgPool
@@ -18,6 +20,28 @@ interface ManagedConnection {
 
 export class DbMonitor {
   private connections = new Map<string, ManagedConnection>()
+
+  constructor() {
+    this.loadConnections()
+  }
+
+  private loadConnections(): void {
+    const saved = store.get('databaseConnections', []) as DbConnectionConfig[]
+    saved.forEach((config) => {
+      this.connections.set(config.id, { config })
+      // We don't automatically connect here to avoid heavy startup
+      // Connections will be established on first query or test
+    })
+  }
+
+  private saveConnections(): void {
+    const configs = Array.from(this.connections.values()).map((m) => m.config)
+    store.set('databaseConnections', configs)
+  }
+
+  getAllConfigs(): DbConnectionConfig[] {
+    return Array.from(this.connections.values()).map(m => m.config)
+  }
 
   async testConnection(config: DbConnectionConfig): Promise<DbConnectionState> {
     const startTime = performance.now()
@@ -319,6 +343,7 @@ export class DbMonitor {
       // ignore
     }
     this.connections.delete(connectionId)
+    this.saveConnections()
   }
 
   async shutdown(): Promise<void> {
@@ -345,6 +370,7 @@ export class DbMonitor {
     const version = result.rows[0]?.version || 'unknown'
 
     this.connections.set(config.id, { config, pgPool: pool })
+    this.saveConnections()
 
     return {
       configId: config.id,
@@ -371,6 +397,7 @@ export class DbMonitor {
     const info = await adminDb.serverInfo()
 
     this.connections.set(config.id, { config, mongoClient: client })
+    this.saveConnections()
 
     return {
       configId: config.id,

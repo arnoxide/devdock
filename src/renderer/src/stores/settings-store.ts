@@ -7,6 +7,8 @@ interface SettingsStore {
 
   loadSettings: () => Promise<void>
   updateSettings: (settings: Partial<GlobalSettings>) => Promise<void>
+  exportSettings: () => Promise<boolean>
+  resetSettings: () => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -22,5 +24,14 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   updateSettings: async (updates: Partial<GlobalSettings>) => {
     const updated = await window.api.updateSettings(updates)
     set({ settings: updated })
+  },
+
+  exportSettings: async () => {
+    return await window.api.exportSettings()
+  },
+
+  resetSettings: async () => {
+    const defaultSettings = await window.api.resetSettings()
+    set({ settings: defaultSettings })
   }
 }))

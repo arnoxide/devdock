@@ -1,10 +1,42 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import store from './store'
 import { registerAllHandlers } from './ipc'
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
+
+function createTray(): void {
+  // Use a simple dot as an icon if no icon is found
+  // In a real app, this should be a proper icon file
+  const icon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon)
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show DevDock',
+      click: () => {
+        mainWindow?.show()
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+
+  tray.setToolTip('DevDock')
+  tray.setContextMenu(contextMenu)
+  tray.on('click', () => {
+    mainWindow?.isVisible() ? mainWindow?.hide() : mainWindow?.show()
+  })
+}
 
 function createWindow(): void {
   const bounds = store.get('windowBounds', { x: 100, y: 100, width: 1400, height: 900 })
@@ -33,7 +65,24 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    const settings = store.get('globalSettings')
+    if (!settings?.startMinimized) {
+      mainWindow?.show()
+    }
+  })
+
+  // Close to tray logic
+  mainWindow.on('close', (event) => {
+    if (isQuitting) {
+      mainWindow = null
+      return
+    }
+
+    const settings = store.get('globalSettings')
+    if (settings?.closeToTray) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
   })
 
   // Save window bounds on resize/move
@@ -72,6 +121,7 @@ app.whenReady().then(() => {
   })
 
   registerAllHandlers()
+  createTray()
   createWindow()
 
   app.on('activate', () => {
@@ -81,7 +131,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    const settings = store.get('globalSettings')
+    if (!settings?.closeToTray) {
+      app.quit()
+    }
   }
 })
 

@@ -9,6 +9,8 @@ import { registerLogHandlers } from './log-handlers'
 import { registerEnvHandlers } from './env-handlers'
 import { registerSettingsHandlers } from './settings-handlers'
 import { registerProdMetricsHandlers } from './prod-metrics-handlers'
+import { registerGitHubHandlers } from './github-handlers'
+import { registerGitHandlers } from './git-handlers'
 
 export function registerAllHandlers(): void {
   registerProjectHandlers()
@@ -22,4 +24,6 @@ export function registerAllHandlers(): void {
   registerEnvHandlers()
   registerSettingsHandlers()
   registerProdMetricsHandlers()
+  registerGitHubHandlers()
+  registerGitHandlers()
 }

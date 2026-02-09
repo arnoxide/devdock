@@ -350,15 +350,101 @@ export interface ProductionMetricsSettings {
 }
 
 // ==========================================
+// GITHUB INTEGRATION
+// ==========================================
+
+export interface GitHubCredentials {
+  token: string
+  username: string
+  avatarUrl: string
+  enabled: boolean
+}
+
+export interface GitHubRepo {
+  id: number
+  name: string
+  fullName: string
+  description: string | null
+  htmlUrl: string
+  language: string | null
+  stargazersCount: number
+  forksCount: number
+  openIssuesCount: number
+  isPrivate: boolean
+  updatedAt: string
+  defaultBranch: string
+}
+
+export interface GitHubPR {
+  id: number
+  number: number
+  title: string
+  state: string
+  htmlUrl: string
+  repoFullName: string
+  user: string
+  createdAt: string
+  updatedAt: string
+  draft: boolean
+  labels: string[]
+  headBranch: string
+  baseBranch: string
+}
+
+export interface GitHubIssue {
+  id: number
+  number: number
+  title: string
+  state: string
+  htmlUrl: string
+  repoFullName: string
+  user: string
+  createdAt: string
+  updatedAt: string
+  labels: string[]
+  commentCount: number
+}
+
+export interface GitHubWorkflowRun {
+  id: number
+  name: string
+  status: string
+  conclusion: string | null
+  htmlUrl: string
+  repoFullName: string
+  headBranch: string
+  event: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GitHubNotification {
+  id: string
+  reason: string
+  subject: { title: string; type: string; url: string | null }
+  repository: string
+  unread: boolean
+  updatedAt: string
+}
+
+export interface GitHubSettings {
+  credentials: GitHubCredentials | null
+  pollingIntervalMs: number
+  enabled: boolean
+}
+
+// ==========================================
 // APP CONFIGURATION
 // ==========================================
 
 export interface AppConfig {
   projects: ProjectConfig[]
+  databaseConnections: DbConnectionConfig[]
   globalSettings: GlobalSettings
   envTemplates: EnvTemplate[]
   windowBounds: { x: number; y: number; width: number; height: number }
   productionMetrics: ProductionMetricsSettings
+  github: GitHubSettings
 }
 
 export interface GlobalSettings {
@@ -369,4 +455,34 @@ export interface GlobalSettings {
   logRetentionCount: number
   startMinimized: boolean
   closeToTray: boolean
+}
+// ==========================================
+// GIT INTEGRATION
+// ==========================================
+
+export interface GitStatus {
+  isRepo: boolean
+  branch: string
+  behind: number
+  ahead: number
+  staged: GitFileStatus[]
+  unstaged: GitFileStatus[]
+  untracked: GitFileStatus[]
+  lastCommit?: {
+    hash: string
+    message: string
+    author: string
+    date: string
+  }
+}
+
+export interface GitFileStatus {
+  path: string
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'staged'
+}
+
+export interface GitCommitRequest {
+  projectId: string
+  message: string
+  files?: string[] // if empty, commit all staged
 }

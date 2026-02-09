@@ -41,4 +41,7 @@ export function registerDbHandlers(): void {
       return dbMonitor.getTableColumns(connectionId, tableName)
     }
   )
+  ipcMain.handle(IPC.DB_GET_CONNECTIONS, async () => {
+    return dbMonitor.getAllConfigs()
+  })
 }

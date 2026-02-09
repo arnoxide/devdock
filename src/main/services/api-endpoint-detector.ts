@@ -173,7 +173,7 @@ export class ApiEndpointDetector {
                 expectedStatus: 200,
                 intervalMs: 30000, // 30 seconds
                 timeoutMs: 5000,
-                enabled: false // Start disabled, user can enable
+                enabled: true // Auto-enable so they start polling immediately
             })
         }
 
@@ -198,7 +198,7 @@ export class ApiEndpointDetector {
             expectedStatus: 200,
             intervalMs: 30000,
             timeoutMs: 5000,
-            enabled: false
+            enabled: true
         }
     }
 }

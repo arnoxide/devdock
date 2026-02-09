@@ -24,6 +24,7 @@ export interface ApiMonitorStore {
   setEndpoints: (endpoints: ApiEndpointConfig[]) => void
   addDetectedEndpoints: (endpoints: ApiEndpointConfig[]) => Promise<void>
   addLogEvent: (event: LogMetricEvent) => void
+  loadEndpoints: () => Promise<void>
 }
 
 export const useApiMonitorStore = create<ApiMonitorStore>((set, get) => ({
@@ -31,6 +32,11 @@ export const useApiMonitorStore = create<ApiMonitorStore>((set, get) => ({
   results: {},
   histories: {},
   logEvents: [],
+
+  loadEndpoints: async () => {
+    const endpoints = await window.api.getApiEndpoints()
+    set({ endpoints })
+  },
 
   addEndpoint: async (config: ApiEndpointConfig) => {
     await window.api.addApiEndpoint(config)

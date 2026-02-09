@@ -11,7 +11,9 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Zap
+  Globe,
+  Zap,
+  Github
 } from 'lucide-react'
 
 const navItems = [
@@ -19,6 +21,8 @@ const navItems = [
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/api-monitor', icon: Activity, label: 'API Monitor' },
   { to: '/db-monitor', icon: Database, label: 'Databases' },
+  { to: '/production', icon: Globe, label: 'Production' },
+  { to: '/github', icon: Github, label: 'GitHub' },
   { to: '/ports', icon: Network, label: 'Ports' },
   { to: '/processes', icon: Cpu, label: 'Processes' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },

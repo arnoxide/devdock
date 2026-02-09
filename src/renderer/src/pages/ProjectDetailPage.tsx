@@ -11,7 +11,8 @@ import {
   Zap,
   Globe,
   Edit,
-  Trash2
+  Trash2,
+  GitBranch
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useProcessStore } from '../stores/process-store'
@@ -19,6 +20,7 @@ import StatusIndicator from '../components/project/StatusIndicator'
 import ProjectTypeBadge from '../components/project/ProjectTypeBadge'
 import ProcessOutput from '../components/terminal/ProcessOutput'
 import TerminalView from '../components/terminal/TerminalView'
+import GitControl from '../components/project/GitControl'
 import Button from '../components/ui/Button'
 import Tabs from '../components/ui/Tabs'
 import Card, { CardBody, CardHeader } from '../components/ui/Card'
@@ -26,8 +28,15 @@ import Card, { CardBody, CardHeader } from '../components/ui/Card'
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { projects, runtimes, removeProject, updateProject } = useProjectStore()
-  const { startServer, stopServer, restartServer } = useProcessStore()
+
+  const projects = useProjectStore((s) => s.projects)
+  const runtimes = useProjectStore((s) => s.runtimes)
+  const removeProject = useProjectStore((s) => s.removeProject)
+  const updateProject = useProjectStore((s) => s.updateProject)
+
+  const startServer = useProcessStore((s) => s.startServer)
+  const stopServer = useProcessStore((s) => s.stopServer)
+  const restartServer = useProcessStore((s) => s.restartServer)
   const [activeTab, setActiveTab] = useState('output')
   const [editingCommand, setEditingCommand] = useState(false)
   const [command, setCommand] = useState('')
@@ -68,6 +77,7 @@ export default function ProjectDetailPage() {
   const tabs = [
     { id: 'output', label: 'Output', icon: <ScrollText size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+    { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
     { id: 'actions', label: 'Quick Actions', icon: <Zap size={14} /> }
   ]
 
@@ -186,6 +196,10 @@ export default function ProjectDetailPage() {
           <div className="h-[400px]">
             <TerminalView projectId={project.id} />
           </div>
+        )}
+
+        {activeTab === 'git' && (
+          <GitControl projectId={project.id} />
         )}
 
         {activeTab === 'actions' && (

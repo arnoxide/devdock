@@ -5,19 +5,19 @@ module.exports = {
     extend: {
       colors: {
         dock: {
-          bg: '#0f1117',
-          surface: '#1a1d27',
-          card: '#242836',
-          border: '#2e3348',
-          text: '#e4e6f0',
-          muted: '#8b8fa3',
-          accent: '#3b82f6',
-          green: '#22c55e',
-          yellow: '#eab308',
-          red: '#ef4444',
-          purple: '#a855f7',
-          orange: '#f97316',
-          cyan: '#06b6d4'
+          bg: 'var(--dock-bg)',
+          surface: 'var(--dock-surface)',
+          card: 'var(--dock-card)',
+          border: 'var(--dock-border)',
+          text: 'var(--dock-text)',
+          muted: 'var(--dock-muted)',
+          accent: 'var(--dock-accent)',
+          green: 'var(--dock-green)',
+          yellow: 'var(--dock-yellow)',
+          red: 'var(--dock-red)',
+          purple: 'var(--dock-purple)',
+          orange: 'var(--dock-orange)',
+          cyan: 'var(--dock-cyan)'
         }
       },
       fontFamily: {
