@@ -9,15 +9,52 @@ import {
     Clock,
     User,
     CheckCircle2,
-    GitPullRequest
+    GitPullRequest,
+    FileEdit,
+    FilePlus,
+    FileX,
+    FileDiff,
+    RotateCcw
 } from 'lucide-react'
 import { useGitStore } from '../../stores/git-store'
+import { GitFileStatus } from '../../../../shared/types'
 import Button from '../ui/Button'
 import Card, { CardBody } from '../ui/Card'
 import Badge from '../ui/Badge'
 
 interface GitControlProps {
     projectId: string
+}
+
+function fileIcon(status: GitFileStatus['status']) {
+    switch (status) {
+        case 'added': return <FilePlus size={13} className="text-dock-green" />
+        case 'deleted': return <FileX size={13} className="text-dock-red" />
+        case 'renamed': return <FileDiff size={13} className="text-dock-purple" />
+        case 'untracked': return <FilePlus size={13} className="text-dock-muted" />
+        default: return <FileEdit size={13} className="text-dock-yellow" />
+    }
+}
+
+function statusLabel(status: GitFileStatus['status']) {
+    switch (status) {
+        case 'added': return 'Added'
+        case 'deleted': return 'Deleted'
+        case 'renamed': return 'Renamed'
+        case 'modified': return 'Modified'
+        case 'untracked': return 'New file'
+        default: return status
+    }
+}
+
+function statusBadgeVariant(status: GitFileStatus['status']): 'success' | 'warning' | 'danger' | 'purple' | 'default' {
+    switch (status) {
+        case 'added': return 'success'
+        case 'deleted': return 'danger'
+        case 'renamed': return 'purple'
+        case 'modified': return 'warning'
+        default: return 'default'
+    }
 }
 
 export default function GitControl({ projectId }: GitControlProps) {
@@ -33,7 +70,7 @@ export default function GitControl({ projectId }: GitControlProps) {
     const init = useGitStore((s) => s.init)
 
     const [commitMessage, setCommitMessage] = useState('')
-    const [isCommiting, setIsCommiting] = useState(false)
+    const [isCommitting, setIsCommitting] = useState(false)
 
     useEffect(() => {
         loadStatus(projectId)
@@ -41,20 +78,22 @@ export default function GitControl({ projectId }: GitControlProps) {
 
     const handleCommit = async () => {
         if (!commitMessage.trim()) return
-        setIsCommiting(true)
+        setIsCommitting(true)
         try {
             await commit(projectId, commitMessage)
             setCommitMessage('')
         } finally {
-            setIsCommiting(false)
+            setIsCommitting(false)
         }
     }
 
     if (isLoading && !status) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 space-y-4">
-                <RefreshCw size={32} className="text-dock-accent animate-spin" />
-                <p className="text-sm text-dock-muted">Reading Git repository...</p>
+            <div className="flex flex-col items-center justify-center p-16 space-y-3">
+                <div className="p-3 rounded-full bg-dock-accent/10">
+                    <RefreshCw size={24} className="text-dock-accent animate-spin" />
+                </div>
+                <p className="text-sm text-dock-muted">Loading repository status...</p>
             </div>
         )
     }
@@ -62,18 +101,19 @@ export default function GitControl({ projectId }: GitControlProps) {
     if (status && !status.isRepo) {
         return (
             <Card className="border-dashed">
-                <CardBody className="flex flex-col items-center justify-center p-12 text-center space-y-4">
-                    <div className="p-4 rounded-full bg-dock-muted/10">
-                        <GitBranch size={40} className="text-dock-muted" />
+                <CardBody className="flex flex-col items-center justify-center p-16 text-center space-y-5">
+                    <div className="p-5 rounded-full bg-dock-muted/10">
+                        <GitBranch size={36} className="text-dock-muted" />
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-dock-text">No Git Repository</h3>
-                        <p className="text-sm text-dock-muted max-w-md mx-auto mt-1">
-                            This project is not currently tracked by Git. Initialize a repository to start versioning your code.
+                    <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-dock-text">Not a Git Repository</h3>
+                        <p className="text-sm text-dock-muted max-w-sm mx-auto leading-relaxed">
+                            This project isn't tracked by Git yet. Initialize a repository to start managing your code with version control.
                         </p>
                     </div>
-                    <Button onClick={() => init(projectId)}>
-                        Initialize Repository
+                    <Button onClick={() => init(projectId)} size="lg">
+                        <GitBranch size={16} />
+                        Initialize Git Repository
                     </Button>
                 </CardBody>
             </Card>
@@ -83,123 +123,169 @@ export default function GitControl({ projectId }: GitControlProps) {
     if (!status) return null
 
     const totalChanges = status.staged.length + status.unstaged.length + status.untracked.length
+    const hasChangesToCommit = totalChanges > 0
+
+    const syncStatus = status.ahead > 0 && status.behind > 0
+        ? 'Your branch has diverged from remote'
+        : status.ahead > 0
+            ? `${status.ahead} commit${status.ahead > 1 ? 's' : ''} ready to push`
+            : status.behind > 0
+                ? `${status.behind} commit${status.behind > 1 ? 's' : ''} to pull from remote`
+                : 'Up to date with remote'
 
     return (
-        <div className="space-y-6">
-            {/* Git Header Status */}
+        <div className="space-y-5">
+            {/* Branch & Sync Header */}
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-dock-surface border border-dock-border rounded-xl">
-                <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent">
-                        <GitBranch size={20} />
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-dock-accent/10">
+                        <GitBranch size={18} className="text-dock-accent" />
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-dock-text">{status.branch}</span>
-                            <Badge variant="info">Branch</Badge>
+                            <span className="text-sm font-bold text-dock-text font-mono">{status.branch}</span>
+                            <Badge variant="info">Active Branch</Badge>
                         </div>
-                        <p className="text-xs text-dock-muted mt-0.5">
-                            Local repository is tracked
-                        </p>
+                        <p className="text-xs text-dock-muted mt-0.5">{syncStatus}</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                        <ArrowUp size={16} className={status.ahead > 0 ? 'text-dock-green' : 'text-dock-muted'} />
-                        <div className="text-right">
-                            <p className="text-sm font-bold text-dock-text">{status.ahead}</p>
-                            <p className="text-[10px] uppercase text-dock-muted">Ahead</p>
+                <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5" title="Commits ahead of remote">
+                            <ArrowUp size={14} className={status.ahead > 0 ? 'text-dock-green' : 'text-dock-muted/40'} />
+                            <span className={`text-sm font-bold ${status.ahead > 0 ? 'text-dock-green' : 'text-dock-muted/60'}`}>
+                                {status.ahead}
+                            </span>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ArrowDown size={16} className={status.behind > 0 ? 'text-dock-red' : 'text-dock-muted'} />
-                        <div className="text-right">
-                            <p className="text-sm font-bold text-dock-text">{status.behind}</p>
-                            <p className="text-[10px] uppercase text-dock-muted">Behind</p>
+                        <div className="flex items-center gap-1.5" title="Commits behind remote">
+                            <ArrowDown size={14} className={status.behind > 0 ? 'text-dock-red' : 'text-dock-muted/40'} />
+                            <span className={`text-sm font-bold ${status.behind > 0 ? 'text-dock-red' : 'text-dock-muted/60'}`}>
+                                {status.behind}
+                            </span>
                         </div>
                     </div>
                     <div className="h-8 w-px bg-dock-border" />
                     <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => pull(projectId)} disabled={isLoading}>
-                            <ArrowDown size={14} className="mr-1.5" /> Pull
+                        <Button variant="ghost" size="sm" onClick={() => loadStatus(projectId)} disabled={isLoading} title="Refresh status">
+                            <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => push(projectId)} disabled={isLoading}>
-                            <ArrowUp size={14} className="mr-1.5" /> Push
+                        <Button variant="secondary" size="sm" onClick={() => pull(projectId)} disabled={isLoading} title="Pull changes from remote">
+                            <ArrowDown size={14} /> Pull
                         </Button>
-                        <Button variant="primary" size="sm" onClick={() => sync(projectId)} disabled={isLoading}>
-                            <RefreshCw size={14} className={`mr-1.5 ${isLoading ? 'animate-spin' : ''}`} /> Sync
+                        <Button variant="secondary" size="sm" onClick={() => push(projectId)} disabled={isLoading} title="Push commits to remote">
+                            <ArrowUp size={14} /> Push
+                        </Button>
+                        <Button variant="primary" size="sm" onClick={() => sync(projectId)} disabled={isLoading} title="Pull then push (sync with remote)">
+                            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Sync
                         </Button>
                     </div>
                 </div>
             </div>
 
+            {/* Error Banner */}
             {err && (
-                <div className="flex items-center gap-3 p-3 text-sm text-dock-red bg-dock-red/5 border border-dock-red/10 rounded-lg">
-                    <AlertCircle size={16} />
-                    {err}
+                <div className="flex items-start gap-3 p-3.5 text-sm bg-dock-red/5 border border-dock-red/15 rounded-lg">
+                    <AlertCircle size={16} className="text-dock-red mt-0.5 shrink-0" />
+                    <div>
+                        <p className="font-medium text-dock-red">Git operation failed</p>
+                        <p className="text-dock-red/80 text-xs mt-0.5">{err}</p>
+                    </div>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Commit Section */}
-                <div className="lg:col-span-2 space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Working Tree & Commit */}
+                <div className="lg:col-span-2">
                     <Card>
                         <div className="p-4 border-b border-dock-border flex items-center justify-between">
                             <h3 className="text-sm font-bold text-dock-text flex items-center gap-2">
                                 <GitCommit size={16} className="text-dock-accent" />
-                                Changes ({totalChanges})
+                                Working Tree
                             </h3>
-                            <div className="flex gap-2">
-                                <span className="text-[10px] font-bold text-dock-green flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-dock-green" /> {status.staged.length} Staged
-                                </span>
-                                <span className="text-[10px] font-bold text-dock-yellow flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-dock-yellow" /> {status.unstaged.length + status.untracked.length} Unstaged
-                                </span>
+                            <div className="flex items-center gap-3">
+                                {status.staged.length > 0 && (
+                                    <span className="text-[10px] font-semibold text-dock-green flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-dock-green" />
+                                        {status.staged.length} staged
+                                    </span>
+                                )}
+                                {status.unstaged.length > 0 && (
+                                    <span className="text-[10px] font-semibold text-dock-yellow flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-dock-yellow" />
+                                        {status.unstaged.length} modified
+                                    </span>
+                                )}
+                                {status.untracked.length > 0 && (
+                                    <span className="text-[10px] font-semibold text-dock-muted flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-dock-muted/40" />
+                                        {status.untracked.length} new
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <CardBody className="space-y-4">
-                            <div className="max-h-[300px] overflow-y-auto space-y-1 pr-2">
+                            <div className="max-h-[300px] overflow-y-auto space-y-0.5 pr-1">
                                 {status.staged.map((f, i) => (
-                                    <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-dock-bg text-xs">
-                                        <span className="text-dock-text font-mono truncate">{f.path}</span>
-                                        <Badge variant="success" className="text-[8px] uppercase">{f.status}</Badge>
+                                    <div key={`s-${i}`} className="flex items-center justify-between p-2 rounded-md hover:bg-dock-bg/60">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {fileIcon(f.status)}
+                                            <span className="text-xs text-dock-text font-mono truncate">{f.path}</span>
+                                        </div>
+                                        <Badge variant="success" className="text-[9px] shrink-0">{statusLabel(f.status)}</Badge>
                                     </div>
                                 ))}
                                 {status.unstaged.map((f, i) => (
-                                    <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-dock-bg text-xs">
-                                        <span className="text-dock-muted font-mono truncate">{f.path}</span>
-                                        <Badge variant="warning" className="text-[8px] uppercase">{f.status}</Badge>
+                                    <div key={`u-${i}`} className="flex items-center justify-between p-2 rounded-md hover:bg-dock-bg/60">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {fileIcon(f.status)}
+                                            <span className="text-xs text-dock-muted font-mono truncate">{f.path}</span>
+                                        </div>
+                                        <Badge variant={statusBadgeVariant(f.status)} className="text-[9px] shrink-0">{statusLabel(f.status)}</Badge>
                                     </div>
                                 ))}
                                 {status.untracked.map((f, i) => (
-                                    <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-dock-bg text-xs">
-                                        <span className="text-dock-muted italic font-mono truncate">{f.path}</span>
-                                        <Badge variant="default" className="text-[8px] uppercase text-dock-muted">untracked</Badge>
+                                    <div key={`t-${i}`} className="flex items-center justify-between p-2 rounded-md hover:bg-dock-bg/60">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {fileIcon('untracked')}
+                                            <span className="text-xs text-dock-muted/70 font-mono truncate">{f.path}</span>
+                                        </div>
+                                        <Badge variant="default" className="text-[9px] shrink-0">New file</Badge>
                                     </div>
                                 ))}
                                 {totalChanges === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-8 text-dock-muted">
-                                        <CheckCircle2 size={24} className="mb-2 opacity-20" />
-                                        <p>No changes detected</p>
+                                    <div className="flex flex-col items-center justify-center py-10 text-dock-muted">
+                                        <CheckCircle2 size={28} className="mb-3 text-dock-green/30" />
+                                        <p className="text-sm font-medium">All clean</p>
+                                        <p className="text-xs mt-0.5">No uncommitted changes in this project</p>
                                     </div>
                                 )}
                             </div>
 
+                            {/* Commit Input */}
                             <div className="pt-4 border-t border-dock-border">
                                 <textarea
-                                    placeholder="Commit message..."
+                                    placeholder="Describe your changes..."
                                     value={commitMessage}
                                     onChange={(e) => setCommitMessage(e.target.value)}
-                                    className="w-full h-24 p-3 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-1 focus:ring-dock-accent resize-none placeholder:text-dock-muted/50"
+                                    className="w-full h-20 p-3 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text
+                                        focus:outline-none focus:ring-2 focus:ring-dock-accent/40 focus:border-dock-accent/60
+                                        resize-none placeholder:text-dock-muted/40"
                                 />
-                                <div className="flex justify-end mt-3">
+                                <div className="flex items-center justify-between mt-3">
+                                    <p className="text-[10px] text-dock-muted">
+                                        {hasChangesToCommit
+                                            ? `${totalChanges} file${totalChanges > 1 ? 's' : ''} will be staged and committed`
+                                            : 'No changes to commit'}
+                                    </p>
                                     <Button
                                         onClick={handleCommit}
-                                        disabled={!commitMessage.trim() || isCommiting || (status.staged.length === 0 && status.unstaged.length === 0)}
+                                        disabled={!commitMessage.trim() || isCommitting || !hasChangesToCommit}
                                     >
-                                        {isCommiting ? <RefreshCw size={14} className="animate-spin mr-1.5" /> : <GitCommit size={14} className="mr-1.5" />}
-                                        Commit Changes
+                                        {isCommitting
+                                            ? <RefreshCw size={14} className="animate-spin" />
+                                            : <GitCommit size={14} />}
+                                        {isCommitting ? 'Committing...' : 'Commit All Changes'}
                                     </Button>
                                 </div>
                             </div>
@@ -207,52 +293,79 @@ export default function GitControl({ projectId }: GitControlProps) {
                     </Card>
                 </div>
 
-                {/* Sidebar / Last Commit */}
-                <div className="space-y-4">
+                {/* Sidebar */}
+                <div className="space-y-5">
+                    {/* Latest Commit */}
                     <Card>
                         <div className="p-4 border-b border-dock-border">
-                            <h3 className="text-sm font-bold text-dock-text">Last Commit</h3>
+                            <h3 className="text-sm font-bold text-dock-text flex items-center gap-2">
+                                <Clock size={14} className="text-dock-accent" />
+                                Latest Commit
+                            </h3>
                         </div>
                         <CardBody>
                             {status.lastCommit ? (
                                 <div className="space-y-4">
                                     <div className="p-3 bg-dock-bg rounded-lg border border-dock-border">
-                                        <p className="text-sm font-medium text-dock-text line-clamp-2">
+                                        <p className="text-sm text-dock-text leading-snug line-clamp-3">
                                             {status.lastCommit.message}
                                         </p>
-                                        <div className="mt-2 flex items-center gap-2 text-[10px] text-dock-muted font-mono">
-                                            <Badge variant="purple" className="px-1 text-[8px]">{status.lastCommit.hash.slice(0, 7)}</Badge>
-                                            <span>{status.lastCommit.date.split(' ')[0]}</span>
+                                        <div className="mt-2.5 flex items-center gap-2">
+                                            <Badge variant="purple" className="text-[9px] font-mono">
+                                                {status.lastCommit.hash.slice(0, 7)}
+                                            </Badge>
                                         </div>
                                     </div>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-xs text-dock-muted">
-                                            <User size={14} className="text-dock-accent" />
+                                    <div className="space-y-2.5">
+                                        <div className="flex items-center gap-2.5 text-xs">
+                                            <User size={13} className="text-dock-accent shrink-0" />
                                             <span className="font-medium text-dock-text">{status.lastCommit.author}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-dock-muted">
-                                            <Clock size={14} className="text-dock-accent" />
-                                            <span>{new Date(status.lastCommit.date).toLocaleString()}</span>
+                                        <div className="flex items-center gap-2.5 text-xs">
+                                            <Clock size={13} className="text-dock-accent shrink-0" />
+                                            <span className="text-dock-muted">
+                                                {new Date(status.lastCommit.date).toLocaleDateString(undefined, {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-6 text-dock-muted italic text-xs">
-                                    No commits found
+                                <div className="flex flex-col items-center py-8 text-dock-muted">
+                                    <GitCommit size={20} className="mb-2 opacity-20" />
+                                    <p className="text-xs">No commits yet</p>
                                 </div>
                             )}
                         </CardBody>
                     </Card>
 
-                    <Card className="bg-dock-accent/5 border-dock-accent/20">
-                        <CardBody className="p-4 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent">
-                                <GitPullRequest size={20} />
+                    {/* Remote Sync Status */}
+                    <Card className={`${
+                        status.ahead === 0 && status.behind === 0
+                            ? 'bg-dock-green/5 border-dock-green/15'
+                            : 'bg-dock-accent/5 border-dock-accent/15'
+                    }`}>
+                        <CardBody className="p-4 flex items-start gap-3">
+                            <div className={`p-2 rounded-lg shrink-0 ${
+                                status.ahead === 0 && status.behind === 0
+                                    ? 'bg-dock-green/10 text-dock-green'
+                                    : 'bg-dock-accent/10 text-dock-accent'
+                            }`}>
+                                <GitPullRequest size={18} />
                             </div>
-                            <div className="flex-1">
-                                <p className="text-xs font-bold text-dock-text">GitHub Tracking</p>
-                                <p className="text-[10px] text-dock-muted leading-tight mt-0.5">
-                                    Local changes are synced with your remote repository.
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-dock-text">
+                                    {status.ahead === 0 && status.behind === 0 ? 'In Sync' : 'Out of Sync'}
+                                </p>
+                                <p className="text-[11px] text-dock-muted leading-relaxed mt-0.5">
+                                    {status.ahead === 0 && status.behind === 0
+                                        ? 'Your local branch matches the remote repository.'
+                                        : syncStatus + '. Use Sync to update.'}
                                 </p>
                             </div>
                         </CardBody>

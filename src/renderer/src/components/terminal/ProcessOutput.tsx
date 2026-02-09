@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { useProcessStore } from '../../stores/process-store'
 
+const EMPTY_OUTPUT: string[] = []
+
 interface ProcessOutputProps {
   projectId: string
   autoScroll?: boolean
 }
 
 export default function ProcessOutput({ projectId, autoScroll = true }: ProcessOutputProps) {
-  const output = useProcessStore((s) => s.outputs[projectId] || [])
+  const output = useProcessStore((s) => s.outputs[projectId]) ?? EMPTY_OUTPUT
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

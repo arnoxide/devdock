@@ -34,7 +34,6 @@ export default function DashboardPage() {
   const entries = useLogStore((s) => s.entries)
 
   useEffect(() => {
-    loadProjects()
     startMonitoring()
   }, [])
 

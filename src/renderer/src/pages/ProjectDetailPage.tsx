@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -29,20 +29,20 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const projects = useProjectStore((s) => s.projects)
-  const runtimes = useProjectStore((s) => s.runtimes)
+  const project = useProjectStore((s) => s.projects.find((p) => p.id === id))
+  const runtime = useProjectStore((s) => s.runtimes[id || ''])
+
   const removeProject = useProjectStore((s) => s.removeProject)
   const updateProject = useProjectStore((s) => s.updateProject)
 
   const startServer = useProcessStore((s) => s.startServer)
   const stopServer = useProcessStore((s) => s.stopServer)
   const restartServer = useProcessStore((s) => s.restartServer)
+
   const [activeTab, setActiveTab] = useState('output')
   const [editingCommand, setEditingCommand] = useState(false)
   const [command, setCommand] = useState('')
 
-  const project = projects.find((p) => p.id === id)
-  const runtime = id ? runtimes[id] : undefined
   const status = runtime?.status || 'idle'
   const isRunning = status === 'running'
   const isTransitioning = status === 'starting' || status === 'stopping'
@@ -64,30 +64,35 @@ export default function ProjectDetailPage() {
   }
 
   const handleSaveCommand = async (): Promise<void> => {
+    if (!project) return
     await updateProject({ id: project.id, startCommand: command })
     setEditingCommand(false)
   }
 
   const handleDelete = async (): Promise<void> => {
+    if (!project) return
     if (isRunning) await stopServer(project.id)
     await removeProject(project.id)
     navigate('/projects')
   }
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'output', label: 'Output', icon: <ScrollText size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
     { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
     { id: 'actions', label: 'Quick Actions', icon: <Zap size={14} /> }
-  ]
+  ], [])
 
-  const quickActions = [
-    ...(project.detectedScripts.build ? [{ label: 'Build', cmd: `${project.packageManager || 'npm'} run build`, icon: '📦' }] : []),
-    ...(project.detectedScripts.test ? [{ label: 'Test', cmd: `${project.packageManager || 'npm'} run test`, icon: '🧪' }] : []),
-    ...(project.detectedScripts.lint ? [{ label: 'Lint', cmd: `${project.packageManager || 'npm'} run lint`, icon: '🔍' }] : []),
-    { label: 'Install Deps', cmd: `${project.packageManager || 'npm'} install`, icon: '📥' },
-    ...project.customCommands.map((c) => ({ label: c.label, cmd: c.command, icon: '⚡' }))
-  ]
+  const quickActions = useMemo(() => {
+    if (!project) return []
+    return [
+      ...(project.detectedScripts.build ? [{ label: 'Build', cmd: `${project.packageManager || 'npm'} run build`, icon: '📦' }] : []),
+      ...(project.detectedScripts.test ? [{ label: 'Test', cmd: `${project.packageManager || 'npm'} run test`, icon: '🧪' }] : []),
+      ...(project.detectedScripts.lint ? [{ label: 'Lint', cmd: `${project.packageManager || 'npm'} run lint`, icon: '🔍' }] : []),
+      { label: 'Install Deps', cmd: `${project.packageManager || 'npm'} install`, icon: '📥' },
+      ...project.customCommands.map((c) => ({ label: c.label, cmd: c.command, icon: '⚡' }))
+    ]
+  }, [project])
 
   return (
     <div className="space-y-6">

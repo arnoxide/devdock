@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Globe, RefreshCw, Settings2 } from 'lucide-react'
-import { PlatformProvider } from '../../../shared/types'
+import { useEffect, useState, useMemo } from 'react'
+import {
+  Globe,
+  RefreshCw,
+  Settings2,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react'
+import { PlatformProvider, ProdService } from '../../../shared/types'
 import { useProdMetricsStore } from '../stores/prod-metrics-store'
+import ProviderIcon, { getProviderLabel } from '../components/production/ProviderIcon'
 import ProviderStatusCard from '../components/production/ProviderStatusCard'
 import ProdServiceCard from '../components/production/ProdServiceCard'
 import DeploymentList from '../components/production/DeploymentList'
@@ -13,9 +20,59 @@ import Button from '../components/ui/Button'
 import Dialog from '../components/ui/Dialog'
 import Tabs from '../components/ui/Tabs'
 import EmptyState from '../components/ui/EmptyState'
+import Badge from '../components/ui/Badge'
 import Spinner from '../components/ui/Spinner'
 
 const ALL_PROVIDERS: PlatformProvider[] = ['render', 'railway', 'vercel', 'aws']
+
+interface ProviderGroup {
+  provider: PlatformProvider
+  services: ProdService[]
+}
+
+function ServiceSelector({
+  groups,
+  selectedServiceId,
+  onSelect
+}: {
+  groups: ProviderGroup[]
+  selectedServiceId: string | null
+  onSelect: (id: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => (
+        <div key={group.provider}>
+          <div className="flex items-center gap-2 mb-2">
+            <ProviderIcon provider={group.provider} size="sm" />
+            <span className="text-[11px] font-semibold text-dock-muted uppercase tracking-wide">
+              {getProviderLabel(group.provider)}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pl-7">
+            {group.services.map((svc) => (
+              <button
+                key={svc.id}
+                onClick={() => onSelect(svc.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${selectedServiceId === svc.id
+                  ? 'border-dock-accent bg-dock-accent/10 text-dock-accent font-medium'
+                  : 'border-dock-border text-dock-muted hover:text-dock-text hover:border-dock-accent/30'
+                  }`}
+              >
+                {svc.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {groups.length === 0 && (
+        <p className="text-xs text-dock-muted text-center py-4">
+          No services available
+        </p>
+      )}
+    </div>
+  )
+}
 
 export default function ProdMetricsPage() {
   const {
@@ -41,6 +98,7 @@ export default function ProdMetricsPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [logViewDeploy, setLogViewDeploy] = useState<string | null>(null)
   const [testing, setTesting] = useState<Record<string, boolean>>({})
+  const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadCredentials()
@@ -49,6 +107,23 @@ export default function ProdMetricsPage() {
       startMonitoring()
     }
   }, [])
+
+  const providerGroups = useMemo((): ProviderGroup[] => {
+    const grouped = new Map<PlatformProvider, ProdService[]>()
+    for (const svc of services) {
+      if (!grouped.has(svc.provider)) grouped.set(svc.provider, [])
+      grouped.get(svc.provider)!.push(svc)
+    }
+
+    // Maintain consistent order
+    return ALL_PROVIDERS
+      .filter((p) => grouped.has(p))
+      .map((p) => ({ provider: p, services: grouped.get(p)! }))
+  }, [services])
+
+  const configuredProviders = useMemo(() => {
+    return ALL_PROVIDERS.filter((p) => credentials.some((c) => c.provider === p))
+  }, [credentials])
 
   const selectedService = services.find((s) => s.id === selectedServiceId)
   const selectedDeploys = selectedServiceId ? deployments[selectedServiceId] || [] : []
@@ -78,6 +153,10 @@ export default function ProdMetricsPage() {
     }
   }
 
+  const toggleProvider = (provider: string) => {
+    setExpandedProviders((prev: Record<string, boolean>) => ({ ...prev, [provider]: !prev[provider] }))
+  }
+
   const hasCredentials = credentials.length > 0
 
   return (
@@ -87,7 +166,7 @@ export default function ProdMetricsPage() {
         <div>
           <h1 className="text-xl font-bold text-dock-text">Production Metrics</h1>
           <p className="text-sm text-dock-muted mt-0.5">
-            Monitor deployments across Render, Railway, Vercel, and AWS
+            Monitor deployments across your cloud platforms
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -132,22 +211,25 @@ export default function ProdMetricsPage() {
           />
 
           {activeTab === 'overview' && (
-            <div className="space-y-4">
-              {/* Provider status cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {ALL_PROVIDERS.map((provider) => (
+            <div className="space-y-5">
+              {/* Provider status cards — only configured providers */}
+              <div className={`grid gap-3 ${configuredProviders.length <= 2
+                ? 'grid-cols-1 sm:grid-cols-2'
+                : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+                }`}>
+                {configuredProviders.map((provider) => (
                   <ProviderStatusCard
                     key={provider}
                     provider={provider}
                     status={providerStatuses[provider]}
-                    hasCredentials={credentials.some((c) => c.provider === provider)}
+                    hasCredentials={true}
                     onTest={() => handleTestProvider(provider)}
                     testing={testing[provider]}
                   />
                 ))}
               </div>
 
-              {/* Service grid */}
+              {/* Services grouped by provider */}
               {loading && services.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                   <Spinner size={20} />
@@ -155,22 +237,62 @@ export default function ProdMetricsPage() {
                     Loading services...
                   </span>
                 </div>
-              ) : services.length > 0 ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-dock-text">
-                    Services ({services.length})
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {services.map((svc) => (
-                      <ProdServiceCard
-                        key={svc.id}
-                        service={svc}
-                        latestDeploy={deployments[svc.id]?.[0]}
-                        selected={selectedServiceId === svc.id}
-                        onClick={() => handleSelectService(svc.id)}
-                      />
-                    ))}
-                  </div>
+              ) : providerGroups.length > 0 ? (
+                <div className="space-y-3">
+                  {providerGroups.map((group) => {
+                    const isExpanded = !!expandedProviders[group.provider]
+
+                    return (
+                      <div
+                        key={group.provider}
+                        className="border border-dock-border rounded-xl overflow-hidden"
+                      >
+                        {/* Provider Section Header */}
+                        <button
+                          onClick={() => toggleProvider(group.provider)}
+                          className="w-full flex items-center justify-between p-3.5 bg-dock-surface hover:bg-dock-card/60 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {isExpanded
+                              ? <ChevronDown size={16} className="text-dock-muted" />
+                              : <ChevronRight size={16} className="text-dock-muted" />}
+                            <ProviderIcon provider={group.provider} />
+                            <span className="text-sm font-semibold text-dock-text">
+                              {getProviderLabel(group.provider)}
+                            </span>
+                            <Badge variant="default" className="text-[10px]">
+                              {group.services.length} service{group.services.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          {providerStatuses[group.provider] && (
+                            <Badge
+                              variant={providerStatuses[group.provider].connectionStatus === 'connected' ? 'success' : 'danger'}
+                              className="text-[10px]"
+                            >
+                              {providerStatuses[group.provider].connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                            </Badge>
+                          )}
+                        </button>
+
+                        {/* Services Grid */}
+                        {isExpanded && (
+                          <div className="p-3 bg-dock-bg/30">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {group.services.map((svc) => (
+                                <ProdServiceCard
+                                  key={svc.id}
+                                  service={svc}
+                                  latestDeploy={deployments[svc.id]?.[0]}
+                                  selected={selectedServiceId === svc.id}
+                                  onClick={() => handleSelectService(svc.id)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-dock-muted text-center py-8">
@@ -182,22 +304,11 @@ export default function ProdMetricsPage() {
 
           {activeTab === 'deployments' && (
             <div className="space-y-4">
-              {/* Service selector */}
-              <div className="flex flex-wrap gap-2">
-                {services.map((svc) => (
-                  <button
-                    key={svc.id}
-                    onClick={() => handleSelectService(svc.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                      selectedServiceId === svc.id
-                        ? 'border-dock-accent bg-dock-accent/10 text-dock-accent'
-                        : 'border-dock-border text-dock-muted hover:text-dock-text'
-                    }`}
-                  >
-                    {svc.name}
-                  </button>
-                ))}
-              </div>
+              <ServiceSelector
+                groups={providerGroups}
+                selectedServiceId={selectedServiceId}
+                onSelect={handleSelectService}
+              />
 
               {selectedService ? (
                 <DeploymentList
@@ -208,7 +319,7 @@ export default function ProdMetricsPage() {
                 />
               ) : (
                 <p className="text-xs text-dock-muted text-center py-8">
-                  Select a service to view deployments
+                  Select a service above to view its deployments
                 </p>
               )}
             </div>
@@ -216,27 +327,17 @@ export default function ProdMetricsPage() {
 
           {activeTab === 'performance' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {services.map((svc) => (
-                  <button
-                    key={svc.id}
-                    onClick={() => handleSelectService(svc.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                      selectedServiceId === svc.id
-                        ? 'border-dock-accent bg-dock-accent/10 text-dock-accent'
-                        : 'border-dock-border text-dock-muted hover:text-dock-text'
-                    }`}
-                  >
-                    {svc.name}
-                  </button>
-                ))}
-              </div>
+              <ServiceSelector
+                groups={providerGroups}
+                selectedServiceId={selectedServiceId}
+                onSelect={handleSelectService}
+              />
 
               {selectedService ? (
                 <PerformanceCharts metrics={selectedPerf} />
               ) : (
                 <p className="text-xs text-dock-muted text-center py-8">
-                  Select a service to view performance metrics
+                  Select a service above to view performance metrics
                 </p>
               )}
             </div>
@@ -244,21 +345,11 @@ export default function ProdMetricsPage() {
 
           {activeTab === 'resources' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {services.map((svc) => (
-                  <button
-                    key={svc.id}
-                    onClick={() => handleSelectService(svc.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                      selectedServiceId === svc.id
-                        ? 'border-dock-accent bg-dock-accent/10 text-dock-accent'
-                        : 'border-dock-border text-dock-muted hover:text-dock-text'
-                    }`}
-                  >
-                    {svc.name}
-                  </button>
-                ))}
-              </div>
+              <ServiceSelector
+                groups={providerGroups}
+                selectedServiceId={selectedServiceId}
+                onSelect={handleSelectService}
+              />
 
               {selectedService ? (
                 <ResourceCharts
@@ -267,7 +358,7 @@ export default function ProdMetricsPage() {
                 />
               ) : (
                 <p className="text-xs text-dock-muted text-center py-8">
-                  Select a service to view resource usage
+                  Select a service above to view resource usage
                 </p>
               )}
             </div>
