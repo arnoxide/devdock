@@ -135,5 +135,13 @@ export const IPC = {
   GIT_PULL: 'git:pull',
   GIT_CHECK_REPO: 'git:check-repo',
   GIT_INIT: 'git:init',
-  GIT_SYNC: 'git:sync'
+  GIT_SYNC: 'git:sync',
+  GIT_GET_REMOTE: 'git:get-remote',
+  GIT_SET_REMOTE: 'git:set-remote',
+
+  // SSH Management
+  SSH_GET_KEY: 'ssh:get-key',
+  SSH_GENERATE_KEY: 'ssh:generate-key',
+  SSH_TEST_CONNECTION: 'ssh:test-connection',
+  SSH_LIST_KEYS: 'ssh:list-keys'
 } as const

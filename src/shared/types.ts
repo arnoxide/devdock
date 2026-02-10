@@ -463,6 +463,7 @@ export interface GlobalSettings {
 export interface GitStatus {
   isRepo: boolean
   branch: string
+  hasRemote: boolean
   behind: number
   ahead: number
   staged: GitFileStatus[]

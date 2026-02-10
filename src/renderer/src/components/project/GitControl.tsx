@@ -21,6 +21,8 @@ import { GitFileStatus } from '../../../../shared/types'
 import Button from '../ui/Button'
 import Card, { CardBody } from '../ui/Card'
 import Badge from '../ui/Badge'
+import Dialog from '../ui/Dialog'
+import Input from '../ui/Input'
 
 interface GitControlProps {
     projectId: string
@@ -68,9 +70,14 @@ export default function GitControl({ projectId }: GitControlProps) {
     const pull = useGitStore((s) => s.pull)
     const sync = useGitStore((s) => s.sync)
     const init = useGitStore((s) => s.init)
+    const setRemote = useGitStore((s) => s.setRemote)
+    const getRemote = useGitStore((s) => s.getRemote)
 
     const [commitMessage, setCommitMessage] = useState('')
     const [isCommitting, setIsCommitting] = useState(false)
+    const [isSettingRemote, setIsSettingRemote] = useState(false)
+    const [remoteUrl, setRemoteUrl] = useState('')
+    const [showRemoteDialog, setShowRemoteDialog] = useState(false)
 
     useEffect(() => {
         loadStatus(projectId)
@@ -84,6 +91,23 @@ export default function GitControl({ projectId }: GitControlProps) {
             setCommitMessage('')
         } finally {
             setIsCommitting(false)
+        }
+    }
+
+    const handleOpenRemoteDialog = async () => {
+        const currentRemote = await getRemote(projectId)
+        setRemoteUrl(currentRemote || '')
+        setShowRemoteDialog(true)
+    }
+
+    const handleSetRemote = async () => {
+        if (!remoteUrl.trim()) return
+        setIsSettingRemote(true)
+        try {
+            await setRemote(projectId, remoteUrl)
+            setShowRemoteDialog(false)
+        } finally {
+            setIsSettingRemote(false)
         }
     }
 
@@ -125,13 +149,15 @@ export default function GitControl({ projectId }: GitControlProps) {
     const totalChanges = status.staged.length + status.unstaged.length + status.untracked.length
     const hasChangesToCommit = totalChanges > 0
 
-    const syncStatus = status.ahead > 0 && status.behind > 0
-        ? 'Your branch has diverged from remote'
-        : status.ahead > 0
-            ? `${status.ahead} commit${status.ahead > 1 ? 's' : ''} ready to push`
-            : status.behind > 0
-                ? `${status.behind} commit${status.behind > 1 ? 's' : ''} to pull from remote`
-                : 'Up to date with remote'
+    const syncStatus = !status.hasRemote
+        ? 'Local repository (no remote tracking)'
+        : status.ahead > 0 && status.behind > 0
+            ? 'Your branch has diverged from remote'
+            : status.ahead > 0
+                ? `${status.ahead} commit${status.ahead > 1 ? 's' : ''} ready to push`
+                : status.behind > 0
+                    ? `${status.behind} commit${status.behind > 1 ? 's' : ''} to pull from remote`
+                    : 'Up to date with remote'
 
     return (
         <div className="space-y-5">
@@ -170,13 +196,13 @@ export default function GitControl({ projectId }: GitControlProps) {
                         <Button variant="ghost" size="sm" onClick={() => loadStatus(projectId)} disabled={isLoading} title="Refresh status">
                             <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => pull(projectId)} disabled={isLoading} title="Pull changes from remote">
+                        <Button variant="secondary" size="sm" onClick={() => pull(projectId)} disabled={isLoading || !status.hasRemote} title="Pull changes from remote">
                             <ArrowDown size={14} /> Pull
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => push(projectId)} disabled={isLoading} title="Push commits to remote">
+                        <Button variant="secondary" size="sm" onClick={() => push(projectId)} disabled={isLoading || !status.hasRemote} title="Push changes to remote">
                             <ArrowUp size={14} /> Push
                         </Button>
-                        <Button variant="primary" size="sm" onClick={() => sync(projectId)} disabled={isLoading} title="Pull then push (sync with remote)">
+                        <Button variant="secondary" size="sm" onClick={() => sync(projectId)} disabled={isLoading || !status.hasRemote} title="Sync with remote (Pull then Push)">
                             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} /> Sync
                         </Button>
                     </div>
@@ -345,33 +371,83 @@ export default function GitControl({ projectId }: GitControlProps) {
                     </Card>
 
                     {/* Remote Sync Status */}
-                    <Card className={`${
-                        status.ahead === 0 && status.behind === 0
+                    <Card className={`${!status.hasRemote
+                        ? 'bg-dock-bg border-dock-border'
+                        : status.ahead === 0 && status.behind === 0
                             ? 'bg-dock-green/5 border-dock-green/15'
                             : 'bg-dock-accent/5 border-dock-accent/15'
-                    }`}>
+                        }`}>
                         <CardBody className="p-4 flex items-start gap-3">
-                            <div className={`p-2 rounded-lg shrink-0 ${
-                                status.ahead === 0 && status.behind === 0
+                            <div className={`p-2 rounded-lg shrink-0 ${!status.hasRemote
+                                ? 'bg-dock-muted/10 text-dock-muted'
+                                : status.ahead === 0 && status.behind === 0
                                     ? 'bg-dock-green/10 text-dock-green'
                                     : 'bg-dock-accent/10 text-dock-accent'
-                            }`}>
+                                }`}>
                                 <GitPullRequest size={18} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-dock-text">
-                                    {status.ahead === 0 && status.behind === 0 ? 'In Sync' : 'Out of Sync'}
-                                </p>
-                                <p className="text-[11px] text-dock-muted leading-relaxed mt-0.5">
-                                    {status.ahead === 0 && status.behind === 0
-                                        ? 'Your local branch matches the remote repository.'
-                                        : syncStatus + '. Use Sync to update.'}
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <p className="text-xs font-bold text-dock-text">
+                                        {!status.hasRemote ? 'No Remote' : status.ahead === 0 && status.behind === 0 ? 'In Sync' : 'Out of Sync'}
+                                    </p>
+                                    <button
+                                        onClick={handleOpenRemoteDialog}
+                                        className="text-[10px] text-dock-accent hover:underline flex items-center gap-1"
+                                    >
+                                        <RefreshCw size={10} />
+                                        {status.hasRemote ? 'Change' : 'Set Remote'}
+                                    </button>
+                                </div>
+                                <p className="text-[11px] text-dock-muted leading-relaxed">
+                                    {!status.hasRemote
+                                        ? 'This branch is not tracking a remote repository.'
+                                        : status.ahead === 0 && status.behind === 0
+                                            ? 'Your local branch matches the remote repository.'
+                                            : syncStatus + '. Use Sync to update.'}
                                 </p>
                             </div>
                         </CardBody>
                     </Card>
                 </div>
             </div>
+
+            {/* Remote Management Dialog */}
+            <Dialog
+                open={showRemoteDialog}
+                onClose={() => setShowRemoteDialog(false)}
+                title="Manage Remote Repository"
+                maxWidth="max-w-md"
+            >
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <p className="text-xs font-bold text-dock-text tracking-tight">How to connect to GitHub:</p>
+                        <ol className="text-[11px] text-dock-muted space-y-1.5 list-decimal ml-4">
+                            <li>Create a new repository on <a href="https://github.com/new" target="_blank" rel="noreferrer" className="text-dock-accent hover:underline">github.com/new</a>.</li>
+                            <li>Copy the <strong>SSH URL</strong> (starts with git@github.com).</li>
+                            <li>Paste the URL into the field below.</li>
+                        </ol>
+                    </div>
+
+                    <Input
+                        label="Remote URL (origin)"
+                        placeholder="git@github.com:username/repository.git"
+                        value={remoteUrl}
+                        onChange={(e) => setRemoteUrl(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" onClick={() => setShowRemoteDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSetRemote}
+                            disabled={isSettingRemote || !remoteUrl.trim()}
+                        >
+                            {isSettingRemote ? 'Saving...' : 'Save Remote'}
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
         </div>
     )
 }

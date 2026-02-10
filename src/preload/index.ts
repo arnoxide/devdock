@@ -140,6 +140,14 @@ const api = {
   gitPull: (projectId: string) => ipcRenderer.invoke(IPC.GIT_PULL, projectId),
   gitInit: (projectId: string) => ipcRenderer.invoke(IPC.GIT_INIT, projectId),
   gitSync: (projectId: string) => ipcRenderer.invoke(IPC.GIT_SYNC, projectId),
+  gitGetRemote: (projectId: string) => ipcRenderer.invoke(IPC.GIT_GET_REMOTE, projectId),
+  gitSetRemote: (projectId: string, url: string) => ipcRenderer.invoke(IPC.GIT_SET_REMOTE, { projectId, url }),
+
+  // SSH
+  sshGetKey: () => ipcRenderer.invoke(IPC.SSH_GET_KEY),
+  sshGenerateKey: (email: string) => ipcRenderer.invoke(IPC.SSH_GENERATE_KEY, email),
+  sshTestConnection: () => ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION),
+  sshListKeys: () => ipcRenderer.invoke(IPC.SSH_LIST_KEYS),
 
   // Event listeners (Main -> Renderer)
   onProcessOutput: createListener(IPC.PROCESS_OUTPUT),

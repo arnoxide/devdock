@@ -1,7 +1,10 @@
 appId: com.devdock.app
 productName: DevDock
+executableName: devdock
+icon: resources/icon.png
 directories:
   buildResources: resources
+  output: dist
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -14,8 +17,13 @@ linux:
   target:
     - AppImage
     - deb
+    - snap
   maintainer: devdock
   category: Development
+  synopsis: "Manage local dev environments with ease"
+  desktop:
+    Name: DevDock
+    Categories: Development;IDE;
 mac:
   target:
     - dmg

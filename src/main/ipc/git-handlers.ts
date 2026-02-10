@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
 import { gitService } from '../services/git-service'
+import { sshService } from '../services/ssh-service'
 import store from '../store'
 import { ProjectConfig } from '../../shared/types'
 
@@ -37,9 +38,36 @@ export function registerGitHandlers(): void {
         return gitService.init(projectPath)
     })
 
+    ipcMain.handle(IPC.GIT_GET_REMOTE, async (_event, projectId: string) => {
+        const projectPath = getProjectPath(projectId)
+        return gitService.getRemote(projectPath)
+    })
+
+    ipcMain.handle(IPC.GIT_SET_REMOTE, async (_event, { projectId, url }: { projectId: string, url: string }) => {
+        const projectPath = getProjectPath(projectId)
+        return gitService.setRemote(projectPath, url)
+    })
+
     ipcMain.handle(IPC.GIT_SYNC, async (_event, projectId: string) => {
         const projectPath = getProjectPath(projectId)
         await gitService.pull(projectPath)
         await gitService.push(projectPath)
+    })
+
+    // SSH Handlers
+    ipcMain.handle(IPC.SSH_GET_KEY, async () => {
+        return sshService.getKey()
+    })
+
+    ipcMain.handle(IPC.SSH_GENERATE_KEY, async (_event, email: string) => {
+        return sshService.generateKey(email)
+    })
+
+    ipcMain.handle(IPC.SSH_TEST_CONNECTION, async () => {
+        return sshService.testConnection()
+    })
+
+    ipcMain.handle(IPC.SSH_LIST_KEYS, async () => {
+        return sshService.listKeys()
     })
 }

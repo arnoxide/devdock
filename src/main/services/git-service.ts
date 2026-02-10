@@ -5,13 +5,23 @@ import { GitStatus, GitFileStatus } from '../../shared/types'
 
 const execAsync = promisify(exec)
 
+const MAX_BUFFER = 10 * 1024 * 1024 // 10MB
+
 export class GitService {
     async isRepo(projectPath: string): Promise<boolean> {
         try {
-            await execAsync('git rev-parse --is-inside-work-tree', { cwd: projectPath })
-            return true
+            // Check if git is available and if we're in a work tree
+            const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            return stdout.trim() === 'true'
         } catch {
-            return false
+            // Fallback: check if .git directory exists
+            try {
+                const fs = await import('node:fs/promises')
+                const stats = await fs.stat(path.join(projectPath, '.git'))
+                return stats.isDirectory()
+            } catch {
+                return false
+            }
         }
     }
 
@@ -21,6 +31,7 @@ export class GitService {
             return {
                 isRepo: false,
                 branch: '',
+                hasRemote: false,
                 behind: 0,
                 ahead: 0,
                 staged: [],
@@ -30,23 +41,58 @@ export class GitService {
         }
 
         try {
-            // Get branch name
-            const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath })
+            // Get branch name - more robust way
+            let branch = ''
+            try {
+                const { stdout: bOut } = await execAsync('git branch --show-current', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                branch = bOut.trim()
+
+                if (!branch) {
+                    const { stdout: headOut } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    branch = headOut.trim()
+                }
+            } catch {
+                branch = 'HEAD (no commits)'
+            }
+
+            // Check if branch has a remote
+            let hasRemote = false
+            try {
+                if (branch && branch !== 'HEAD (no commits)') {
+                    await execAsync(`git rev-parse --abbrev-ref ${branch}@{u}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    hasRemote = true
+                }
+            } catch {
+                hasRemote = false
+            }
 
             // Get status short form
-            const { stdout: statusOut } = await execAsync('git status --porcelain', { cwd: projectPath })
+            let statusOut = ''
+            try {
+                const { stdout } = await execAsync('git status --porcelain', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                statusOut = stdout
+            } catch (err) {
+                console.warn('Git porcelain status failed:', err)
+            }
 
             // Get ahead/behind
             let ahead = 0
             let behind = 0
             try {
-                await execAsync('git fetch', { cwd: projectPath })
-                const { stdout: abOut } = await execAsync('git rev-list --left-right --count HEAD...@{u}', { cwd: projectPath })
-                const [a, b] = abOut.trim().split('\t').map(Number)
-                ahead = a || 0
-                behind = b || 0
+                // Only try to fetch if we have a branch name that isn't the "no commits" placeholder
+                if (hasRemote) {
+                    // Try fetch but don't fail if no remote exists
+                    try {
+                        await execAsync('git fetch --timeout=5', { cwd: projectPath, maxBuffer: MAX_BUFFER }).catch(() => { })
+                    } catch { }
+
+                    const { stdout: abOut } = await execAsync('git rev-list --left-right --count HEAD...@{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    const [a, b] = abOut.trim().split(/\s+/).map(Number)
+                    ahead = a || 0
+                    behind = b || 0
+                }
             } catch {
-                // No upstream or fetch failed
+                // No upstream or fetch failed - common for new/local-only repos
             }
 
             const staged: GitFileStatus[] = []
@@ -61,39 +107,38 @@ export class GitService {
 
                 const fileStatus: GitFileStatus = {
                     path: filePath,
-                    status: 'modified' // default fallback
+                    status: 'modified'
                 }
 
                 if (x === '?' && y === '?') {
                     fileStatus.status = 'untracked'
                     untracked.push(fileStatus)
                 } else {
-                    // Staged changes (X)
                     if (x !== ' ' && x !== '?') {
-                        const stagedFile = { ...fileStatus, status: this.mapStatus(x) }
-                        staged.push(stagedFile)
+                        staged.push({ ...fileStatus, status: this.mapStatus(x) })
                     }
-                    // Unstaged changes (Y)
                     if (y !== ' ' && y !== '?') {
-                        const unstagedFile = { ...fileStatus, status: this.mapStatus(y) }
-                        unstaged.push(unstagedFile)
+                        unstaged.push({ ...fileStatus, status: this.mapStatus(y) })
                     }
                 }
             }
 
-            // Last commit
             let lastCommit
             try {
-                const { stdout: logOut } = await execAsync('git log -1 --format="%H|%s|%an|%ai"', { cwd: projectPath })
-                const [hash, message, author, date] = logOut.trim().split('|')
-                lastCommit = { hash, message, author, date }
+                const { stdout: logOut } = await execAsync('git log -1 --format="%H|%s|%an|%ai"', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                const parts = logOut.trim().split('|')
+                if (parts.length >= 4) {
+                    const [hash, message, author, date] = parts
+                    lastCommit = { hash, message, author, date }
+                }
             } catch {
                 // No commits yet
             }
 
             return {
                 isRepo: true,
-                branch: branch.trim(),
+                branch: branch || 'master',
+                hasRemote,
                 ahead,
                 behind,
                 staged,
@@ -101,9 +146,19 @@ export class GitService {
                 untracked,
                 lastCommit
             }
-        } catch (err) {
-            console.error('Git status error:', err)
-            throw err
+        } catch (err: any) {
+            console.error('Git status parsing error:', err)
+            // Still return isRepo: true if we got this far
+            return {
+                isRepo: true,
+                branch: 'unknown',
+                hasRemote: false,
+                ahead: 0,
+                behind: 0,
+                staged: [],
+                unstaged: [],
+                untracked: []
+            }
         }
     }
 
@@ -119,39 +174,93 @@ export class GitService {
     }
 
     async commit(projectPath: string, message: string): Promise<void> {
-        // Stage all changes (modified, deleted, and untracked files) before committing
-        await execAsync('git add -A', { cwd: projectPath })
-        await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: projectPath })
+        // Ensure .gitignore exists for node projects to prevent massive commits
+        await this.ensureGitignore(projectPath)
+
+        // Stage all changes
+        await execAsync('git add -A', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
     }
 
     async push(projectPath: string): Promise<void> {
         // Check if upstream is set; if not, push with -u to set it
         try {
-            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath })
-            await execAsync('git push', { cwd: projectPath })
+            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            await execAsync('git push', { cwd: projectPath, maxBuffer: MAX_BUFFER })
         } catch {
-            const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath })
-            await execAsync(`git push -u origin ${branch.trim()}`, { cwd: projectPath })
+            const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            await execAsync(`git push -u origin ${branch.trim()}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
         }
     }
 
     async pull(projectPath: string): Promise<void> {
         // Check if upstream is set before pulling
         try {
-            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath })
-            await execAsync('git pull', { cwd: projectPath })
+            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            await execAsync('git pull', { cwd: projectPath, maxBuffer: MAX_BUFFER })
         } catch {
             throw new Error('No upstream branch configured. Push first to set up tracking.')
         }
     }
 
     async init(projectPath: string): Promise<void> {
-        await execAsync('git init', { cwd: projectPath })
+        await execAsync('git init', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        await this.ensureGitignore(projectPath)
     }
 
     async add(projectPath: string, files: string[]): Promise<void> {
         const fileList = files.map(f => `"${f}"`).join(' ')
-        await execAsync(`git add ${fileList}`, { cwd: projectPath })
+        await execAsync(`git add ${fileList}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+    }
+
+    private async ensureGitignore(projectPath: string): Promise<void> {
+        try {
+            const fs = await import('node:fs/promises')
+            const gitignorePath = path.join(projectPath, '.gitignore')
+
+            try {
+                await fs.access(gitignorePath)
+            } catch {
+                // File does not exist, create a basic one for web development
+                const content = [
+                    'node_modules/',
+                    'dist/',
+                    '.env*',
+                    '.DS_Store',
+                    '*.log',
+                    '.vite/',
+                    '.next/'
+                ].join('\n')
+                await fs.writeFile(gitignorePath, content)
+            }
+        } catch (err) {
+            console.warn('Failed to ensure .gitignore:', err)
+        }
+    }
+    async setRemote(projectPath: string, url: string): Promise<void> {
+        try {
+            // Check if origin already exists
+            try {
+                await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                // If it exists, change it
+                await execAsync(`git remote set-url origin "${url}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            } catch {
+                // If it doesn't exist, add it
+                await execAsync(`git remote add origin "${url}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            }
+        } catch (err: any) {
+            console.error('Failed to set remote:', err)
+            throw new Error(`Failed to set remote: ${err.message}`)
+        }
+    }
+
+    async getRemote(projectPath: string): Promise<string | null> {
+        try {
+            const { stdout } = await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            return stdout.trim()
+        } catch {
+            return null
+        }
     }
 }
 
