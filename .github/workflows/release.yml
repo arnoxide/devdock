@@ -1,0 +1,71 @@
+name: Build & Release DevDock
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v1.0.0
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+        # This will trigger node-gyp to rebuild native modules like node-pty 
+        # specifically for the OS of the runner.
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Package Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: npx electron-builder --linux
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Windows
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package macOS
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: devdock-${{ matrix.platform }}
+          path: |
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error

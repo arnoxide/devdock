@@ -11,6 +11,8 @@
     "start": "electron-vite preview",
     "postinstall": "electron-rebuild -f -w node-pty",
     "package": "electron-vite build && electron-builder --linux",
+    "package:win": "electron-vite build && electron-builder --win",
+    "package:all": "electron-vite build && electron-builder --win --linux --mac",
     "package:dir": "electron-vite build && electron-builder --dir"
   },
   "dependencies": {
