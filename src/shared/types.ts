@@ -445,6 +445,41 @@ export interface AppConfig {
   windowBounds: { x: number; y: number; width: number; height: number }
   productionMetrics: ProductionMetricsSettings
   github: GitHubSettings
+  securityVault: SecurityVaultConfig
+}
+
+// ==========================================
+// SECURITY VAULT
+// ==========================================
+
+export type VaultEnvironment = 'development' | 'staging' | 'production' | 'test'
+
+export interface EnvVarEntry {
+  id: string
+  key: string
+  value: string
+  environment: VaultEnvironment
+  isSecret: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectEnvVault {
+  projectId: string
+  projectName: string
+  variables: EnvVarEntry[]
+}
+
+export interface SecurityVaultConfig {
+  vaults: ProjectEnvVault[]
+  defaultPasswordLength: number
+  defaultPasswordOptions: {
+    uppercase: boolean
+    lowercase: boolean
+    numbers: boolean
+    symbols: boolean
+    excludeSimilar: boolean
+  }
 }
 
 export interface GlobalSettings {

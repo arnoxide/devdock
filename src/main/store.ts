@@ -24,6 +24,17 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
     credentials: null,
     pollingIntervalMs: 60000,
     enabled: false
+  },
+  securityVault: {
+    vaults: [],
+    defaultPasswordLength: 16,
+    defaultPasswordOptions: {
+      uppercase: true,
+      lowercase: true,
+      numbers: true,
+      symbols: true,
+      excludeSimilar: false
+    }
   }
 }
 

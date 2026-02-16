@@ -9,9 +9,17 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray(): void {
-  // Use a simple dot as an icon if no icon is found
-  // In a real app, this should be a proper icon file
-  const icon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/icon.png')
+    : join(process.resourcesPath, 'icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
+
+  if (icon.isEmpty() && process.platform === 'darwin') {
+    // macOS requires a valid tray icon — skip tray if icon is missing
+    console.warn('[DevDock] Tray icon not found, skipping tray creation')
+    return
+  }
+
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon)
 
   const contextMenu = Menu.buildFromTemplate([
@@ -41,6 +49,8 @@ function createTray(): void {
 function createWindow(): void {
   const bounds = store.get('windowBounds', { x: 100, y: 100, width: 1400, height: 900 })
 
+  const isMac = process.platform === 'darwin'
+
   mainWindow = new BrowserWindow({
     width: bounds.width,
     height: bounds.height,
@@ -51,11 +61,15 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#0f1117',
     titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#0f1117',
-      symbolColor: '#8b8fa3',
-      height: 40
-    },
+    ...(isMac
+      ? { trafficLightPosition: { x: 12, y: 12 } }
+      : {
+          titleBarOverlay: {
+            color: '#0f1117',
+            symbolColor: '#8b8fa3',
+            height: 40
+          }
+        }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -70,6 +84,14 @@ function createWindow(): void {
       mainWindow?.show()
     }
   })
+
+  // Fallback: if ready-to-show never fires (e.g. renderer error), show window after 5s
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn('[DevDock] ready-to-show did not fire, forcing window show')
+      mainWindow.show()
+    }
+  }, 5000)
 
   // Close to tray logic
   mainWindow.on('close', (event) => {
@@ -121,8 +143,13 @@ app.whenReady().then(() => {
   })
 
   registerAllHandlers()
-  createTray()
   createWindow()
+
+  try {
+    createTray()
+  } catch (err) {
+    console.error('[DevDock] Failed to create tray:', err)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

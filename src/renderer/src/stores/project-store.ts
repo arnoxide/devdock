@@ -37,7 +37,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addProject: async (path: string) => {
     const project = await window.api.addProject(path)
-    set((state) => ({ projects: [...state.projects, project] }))
+    // Reload all projects from backend to capture bulk-added children
+    const allProjects = await window.api.listProjects()
+    set({ projects: allProjects })
     return project
   },
 

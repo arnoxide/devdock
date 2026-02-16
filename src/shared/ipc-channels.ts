@@ -143,5 +143,14 @@ export const IPC = {
   SSH_GET_KEY: 'ssh:get-key',
   SSH_GENERATE_KEY: 'ssh:generate-key',
   SSH_TEST_CONNECTION: 'ssh:test-connection',
-  SSH_LIST_KEYS: 'ssh:list-keys'
+  SSH_LIST_KEYS: 'ssh:list-keys',
+
+  // Security Vault
+  VAULT_GET_VAULTS: 'vault:get-vaults',
+  VAULT_SAVE_VAULT: 'vault:save-vault',
+  VAULT_DELETE_VAULT: 'vault:delete-vault',
+  VAULT_EXPORT_ENV: 'vault:export-env',
+  VAULT_IMPORT_ENV: 'vault:import-env',
+  VAULT_ENCRYPT_VALUE: 'vault:encrypt-value',
+  VAULT_DECRYPT_VALUE: 'vault:decrypt-value'
 } as const

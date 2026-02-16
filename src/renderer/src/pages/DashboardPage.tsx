@@ -6,11 +6,18 @@ import {
   Network,
   Play,
   Square,
-  Server
+  Server,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Clock,
+  GitBranch,
+  ExternalLink
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useSystemStore } from '../stores/system-store'
 import { useLogStore } from '../stores/log-store'
+import { useGitHubStore } from '../stores/github-store'
 import CpuGauge from '../components/system/CpuGauge'
 import MemoryBar from '../components/system/MemoryBar'
 import StatusIndicator from '../components/project/StatusIndicator'
@@ -18,6 +25,17 @@ import ProjectTypeBadge from '../components/project/ProjectTypeBadge'
 import Card, { CardBody, CardHeader } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { useProcessStore } from '../stores/process-store'
+
+function formatTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -32,6 +50,8 @@ export default function DashboardPage() {
   const stopServer = useProcessStore((s) => s.stopServer)
 
   const entries = useLogStore((s) => s.entries)
+  const actions = useGitHubStore((s) => s.actions)
+  const credentials = useGitHubStore((s) => s.credentials)
 
   useEffect(() => {
     startMonitoring()
@@ -42,6 +62,7 @@ export default function DashboardPage() {
     [runtimes])
 
   const recentLogs = useMemo(() => entries.slice(-8), [entries])
+  const recentActions = useMemo(() => actions.slice(0, 8), [actions])
 
   return (
     <div className="space-y-6">
@@ -192,6 +213,77 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* CI/CD Builds */}
+      {credentials && (
+        <Card>
+          <CardHeader className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-dock-text">CI/CD Builds</h2>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/github')}>
+              View All
+            </Button>
+          </CardHeader>
+          <CardBody className="space-y-1 max-h-64 overflow-y-auto">
+            {recentActions.length === 0 ? (
+              <p className="text-xs text-dock-muted text-center py-4">
+                No workflow runs yet
+              </p>
+            ) : (
+              recentActions.map((run) => (
+                <div
+                  key={run.id}
+                  className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-dock-card/50 transition-colors group"
+                >
+                  <div className="shrink-0">
+                    {(run.status === 'in_progress' || run.status === 'queued' || run.status === 'pending') ? (
+                      <Loader2 size={16} className="text-dock-yellow animate-spin" />
+                    ) : run.conclusion === 'success' ? (
+                      <CheckCircle2 size={16} className="text-dock-green" />
+                    ) : run.conclusion === 'failure' ? (
+                      <XCircle size={16} className="text-dock-red" />
+                    ) : (
+                      <Clock size={16} className="text-dock-muted" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-dock-text truncate">{run.name}</span>
+                      <span
+                        className={`px-1.5 py-0.5 text-[10px] rounded shrink-0 ${
+                          run.conclusion === 'success'
+                            ? 'bg-dock-green/10 text-dock-green'
+                            : run.conclusion === 'failure'
+                              ? 'bg-dock-red/10 text-dock-red'
+                              : (run.status === 'in_progress' || run.status === 'queued')
+                                ? 'bg-dock-yellow/10 text-dock-yellow'
+                                : 'bg-dock-border text-dock-muted'
+                        }`}
+                      >
+                        {run.conclusion || run.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-dock-muted mt-0.5">
+                      <span className="truncate">{run.repoFullName}</span>
+                      <span className="flex items-center gap-0.5">
+                        <GitBranch size={10} />
+                        {run.headBranch}
+                      </span>
+                      <span>{formatTimeAgo(run.createdAt)}</span>
+                    </div>
+                  </div>
+                  <a
+                    href={run.htmlUrl}
+                    className="text-dock-muted hover:text-dock-text opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={(e) => { e.preventDefault(); window.open(run.htmlUrl, '_blank') }}
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* Recent Logs */}
       <Card>

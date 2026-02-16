@@ -1,4 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { execFile } from 'node:child_process'
 import { IPC } from '../../shared/ipc-channels'
 import { ProjectConfig } from '../../shared/types'
 import { processManager } from '../services/process-manager'
@@ -48,6 +51,74 @@ export function registerProcessHandlers(): void {
 
     const cmd = command || project.startCommand
     if (!cmd) throw new Error('No start command configured for this project')
+
+    // Auto-install dependencies if node_modules is missing
+    const hasPackageJson = existsSync(join(project.path, 'package.json'))
+    const hasNodeModules = existsSync(join(project.path, 'node_modules'))
+
+    if (hasPackageJson && !hasNodeModules) {
+      const window = getMainWindow()
+
+      // Determine install command based on project's package manager or lock files
+      let installCmd = 'npm install'
+      if (project.packageManager === 'yarn' || existsSync(join(project.path, 'yarn.lock'))) {
+        installCmd = 'yarn install'
+      } else if (project.packageManager === 'pnpm' || existsSync(join(project.path, 'pnpm-lock.yaml'))) {
+        installCmd = 'pnpm install'
+      } else if (project.packageManager === 'bun' || existsSync(join(project.path, 'bun.lockb'))) {
+        installCmd = 'bun install'
+      }
+
+      // Notify renderer that we're installing
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.PROCESS_OUTPUT, {
+          projectId,
+          data: `\r\n[DevDock] node_modules not found. Running ${installCmd}...\r\n`,
+          source: 'system'
+        })
+      }
+
+      // Run install and wait for completion
+      await new Promise<void>((resolve, reject) => {
+        const parts = installCmd.split(' ')
+        const child = execFile(parts[0], parts.slice(1), {
+          cwd: project.path,
+          shell: true,
+          env: { ...process.env, FORCE_COLOR: '1' },
+          maxBuffer: 10 * 1024 * 1024
+        }, (error) => {
+          if (error) reject(error)
+          else resolve()
+        })
+
+        child.stdout?.on('data', (data: Buffer | string) => {
+          if (window && !window.isDestroyed()) {
+            window.webContents.send(IPC.PROCESS_OUTPUT, {
+              projectId,
+              data: data.toString(),
+              source: 'stdout'
+            })
+          }
+        })
+        child.stderr?.on('data', (data: Buffer | string) => {
+          if (window && !window.isDestroyed()) {
+            window.webContents.send(IPC.PROCESS_OUTPUT, {
+              projectId,
+              data: data.toString(),
+              source: 'stderr'
+            })
+          }
+        })
+      })
+
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.PROCESS_OUTPUT, {
+          projectId,
+          data: `\r\n[DevDock] Dependencies installed. Starting project...\r\n`,
+          source: 'system'
+        })
+      }
+    }
 
     await processManager.start(projectId, cmd, project.path)
   })

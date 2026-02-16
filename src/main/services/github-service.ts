@@ -15,6 +15,8 @@ const TOP_REPOS = 10
 
 export class GitHubService extends EventEmitter {
   private pollInterval: NodeJS.Timeout | null = null
+  private fastPollInterval: NodeJS.Timeout | null = null
+  private fastPollCount = 0
   private repos: GitHubRepo[] = []
   private prs: GitHubPR[] = []
   private issues: GitHubIssue[] = []
@@ -93,6 +95,32 @@ export class GitHubService extends EventEmitter {
     if (this.pollInterval) {
       clearInterval(this.pollInterval)
       this.pollInterval = null
+    }
+    this.stopFastPolling()
+  }
+
+  // Fast polling mode: polls every 10s after a push, auto-stops when no
+  // in-progress builds remain or after 30 cycles (~5 minutes)
+  startFastPolling(): void {
+    if (this.fastPollInterval) return
+    this.fastPollCount = 0
+    this.fastPollInterval = setInterval(async () => {
+      this.fastPollCount++
+      await this.pollAll()
+      const hasInProgress = this.actions.some(
+        (a) => a.status === 'in_progress' || a.status === 'queued' || a.status === 'pending'
+      )
+      if (!hasInProgress || this.fastPollCount >= 30) {
+        this.stopFastPolling()
+      }
+    }, 10000)
+  }
+
+  private stopFastPolling(): void {
+    if (this.fastPollInterval) {
+      clearInterval(this.fastPollInterval)
+      this.fastPollInterval = null
+      this.fastPollCount = 0
     }
   }
 
@@ -354,6 +382,7 @@ export class GitHubService extends EventEmitter {
 
   shutdown(): void {
     this.stopPolling()
+    this.stopFastPolling()
   }
 }
 

@@ -55,15 +55,24 @@ export class GitService {
                 branch = 'HEAD (no commits)'
             }
 
-            // Check if branch has a remote
+            // Check if a remote origin exists (even without upstream tracking)
             let hasRemote = false
+            let hasUpstream = false
             try {
-                if (branch && branch !== 'HEAD (no commits)') {
-                    await execAsync(`git rev-parse --abbrev-ref ${branch}@{u}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
-                    hasRemote = true
-                }
+                await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                hasRemote = true
             } catch {
                 hasRemote = false
+            }
+
+            // Check if the current branch tracks an upstream
+            if (hasRemote && branch && branch !== 'HEAD (no commits)') {
+                try {
+                    await execAsync(`git rev-parse --abbrev-ref ${branch}@{u}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    hasUpstream = true
+                } catch {
+                    hasUpstream = false
+                }
             }
 
             // Get status short form
@@ -79,8 +88,7 @@ export class GitService {
             let ahead = 0
             let behind = 0
             try {
-                // Only try to fetch if we have a branch name that isn't the "no commits" placeholder
-                if (hasRemote) {
+                if (hasUpstream) {
                     // Try fetch but don't fail if no remote exists
                     try {
                         await execAsync('git fetch --timeout=5', { cwd: projectPath, maxBuffer: MAX_BUFFER }).catch(() => { })

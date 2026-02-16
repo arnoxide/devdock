@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels'
 import { gitService } from '../services/git-service'
+import { githubService } from '../services/github-service'
 import { sshService } from '../services/ssh-service'
 import store from '../store'
 import { ProjectConfig } from '../../shared/types'
@@ -25,7 +26,16 @@ export function registerGitHandlers(): void {
 
     ipcMain.handle(IPC.GIT_PUSH, async (_event, projectId: string) => {
         const projectPath = getProjectPath(projectId)
-        return gitService.push(projectPath)
+        const result = await gitService.push(projectPath)
+        // After push, trigger GitHub Actions refresh with a delay
+        // (GitHub needs a moment to register the push and start workflows)
+        setTimeout(() => {
+            githubService.refreshNow()
+            // Poll again after 15s to catch workflow status changes
+            setTimeout(() => githubService.refreshNow(), 15000)
+        }, 5000)
+        githubService.startFastPolling()
+        return result
     })
 
     ipcMain.handle(IPC.GIT_PULL, async (_event, projectId: string) => {

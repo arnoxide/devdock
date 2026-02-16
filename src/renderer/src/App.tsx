@@ -1,4 +1,4 @@
-import { useEffect, ReactNode } from 'react'
+import { useEffect, useRef, ReactNode } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import ErrorBoundary from './components/ui/ErrorBoundary'
@@ -13,6 +13,7 @@ import ProcessDashboardPage from './pages/ProcessDashboardPage'
 import LogViewerPage from './pages/LogViewerPage'
 import ProdMetricsPage from './pages/ProdMetricsPage'
 import GitHubPage from './pages/GitHubPage'
+import SecurityVaultPage from './pages/SecurityVaultPage'
 import SettingsPage from './pages/SettingsPage'
 import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
@@ -23,6 +24,7 @@ import { useApiMonitorStore } from './stores/api-monitor-store'
 import { useDbMonitorStore } from './stores/db-monitor-store'
 import { useGitHubStore } from './stores/github-store'
 import { useSettingsStore } from './stores/settings-store'
+import { useProdMetricsStore } from './stores/prod-metrics-store'
 
 function PageBoundary({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
@@ -38,6 +40,9 @@ export default function App() {
   const theme = useSettingsStore((s) => s.settings?.theme)
   const loadSettings = useSettingsStore((s) => s.loadSettings)
   const loadDbConnections = useDbMonitorStore((s) => s.loadConnections)
+  const loadProdCredentials = useProdMetricsStore((s) => s.loadCredentials)
+  const loadProdServices = useProdMetricsStore((s) => s.loadServices)
+  const startProdMonitoring = useProdMetricsStore((s) => s.startMonitoring)
 
   // Subscribe to all IPC events
   useIpcListeners()
@@ -49,7 +54,21 @@ export default function App() {
     loadEndpoints()
     loadSettings()
     loadDbConnections()
+    loadProdCredentials()
+    loadProdServices().then(() => startProdMonitoring())
     loadGitHubCredentials().then(() => startGitHubPolling())
+  }, [])
+
+  // Periodic polling for real-time updates (every 10s)
+  const pollRef = useRef<ReturnType<typeof setInterval>>()
+  useEffect(() => {
+    pollRef.current = setInterval(() => {
+      loadProjects()
+      loadDbConnections()
+      loadProdServices()
+      loadEndpoints()
+    }, 10_000)
+    return () => clearInterval(pollRef.current)
   }, [])
 
   // Apply theme
@@ -75,6 +94,7 @@ export default function App() {
         <Route path="/ports" element={<PageBoundary><PortManagerPage /></PageBoundary>} />
         <Route path="/processes" element={<PageBoundary><ProcessDashboardPage /></PageBoundary>} />
         <Route path="/logs" element={<PageBoundary><LogViewerPage /></PageBoundary>} />
+        <Route path="/vault" element={<PageBoundary><SecurityVaultPage /></PageBoundary>} />
         <Route path="/settings" element={<PageBoundary><SettingsPage /></PageBoundary>} />
         <Route path="/notifications" element={<PageBoundary><NotificationsPage /></PageBoundary>} />
         <Route path="/profile" element={<PageBoundary><ProfilePage /></PageBoundary>} />

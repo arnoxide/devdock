@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Globe,
   Zap,
-  Github
+  Github,
+  ShieldCheck
 } from 'lucide-react'
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/ports', icon: Network, label: 'Ports' },
   { to: '/processes', icon: Cpu, label: 'Processes' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },
+  { to: '/vault', icon: ShieldCheck, label: 'Security Vault' },
   { to: '/settings', icon: Settings, label: 'Settings' }
 ]
 

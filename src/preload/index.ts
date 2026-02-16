@@ -149,6 +149,15 @@ const api = {
   sshTestConnection: () => ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION),
   sshListKeys: () => ipcRenderer.invoke(IPC.SSH_LIST_KEYS),
 
+  // Security Vault
+  vaultGetVaults: () => ipcRenderer.invoke(IPC.VAULT_GET_VAULTS),
+  vaultSaveVault: (vault: unknown) => ipcRenderer.invoke(IPC.VAULT_SAVE_VAULT, vault),
+  vaultDeleteVault: (projectId: string) => ipcRenderer.invoke(IPC.VAULT_DELETE_VAULT, projectId),
+  vaultExportEnv: (projectId: string, environment: string) => ipcRenderer.invoke(IPC.VAULT_EXPORT_ENV, projectId, environment),
+  vaultImportEnv: (projectId: string, projectName: string, environment: string) => ipcRenderer.invoke(IPC.VAULT_IMPORT_ENV, projectId, projectName, environment),
+  vaultEncryptValue: (value: string) => ipcRenderer.invoke(IPC.VAULT_ENCRYPT_VALUE, value),
+  vaultDecryptValue: (encrypted: string) => ipcRenderer.invoke(IPC.VAULT_DECRYPT_VALUE, encrypted),
+
   // Event listeners (Main -> Renderer)
   onProcessOutput: createListener(IPC.PROCESS_OUTPUT),
   onProcessStatusChanged: createListener(IPC.PROCESS_STATUS_CHANGED),
