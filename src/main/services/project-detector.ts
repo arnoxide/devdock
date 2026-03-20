@@ -37,6 +37,12 @@ export class ProjectDetector {
     // 3. Check package.json (generic Node/React)
     if (hasFile('package.json')) {
       const pkg = await this.readPackageJson(projectPath)
+      if (this.isExpo(pkg)) {
+        return this.buildNodeResult(projectPath, 'expo')
+      }
+      if (this.isReactNative(pkg)) {
+        return this.buildNodeResult(projectPath, 'react-native')
+      }
       if (this.isCRA(pkg)) {
         return this.buildNodeResult(projectPath, 'react-cra')
       }
@@ -108,6 +114,24 @@ export class ProjectDetector {
     }
   }
 
+  private isExpo(pkg: Record<string, unknown> | null): boolean {
+    if (!pkg) return false
+    const deps = {
+      ...((pkg.dependencies as Record<string, string>) ?? {}),
+      ...((pkg.devDependencies as Record<string, string>) ?? {})
+    }
+    return 'expo' in deps
+  }
+
+  private isReactNative(pkg: Record<string, unknown> | null): boolean {
+    if (!pkg) return false
+    const deps = {
+      ...((pkg.dependencies as Record<string, string>) ?? {}),
+      ...((pkg.devDependencies as Record<string, string>) ?? {})
+    }
+    return 'react-native' in deps && !('expo' in deps)
+  }
+
   private isCRA(pkg: Record<string, unknown> | null): boolean {
     if (!pkg) return false
     const scripts = pkg.scripts as Record<string, string> | undefined
@@ -124,7 +148,11 @@ export class ProjectDetector {
     const scripts = (pkg?.scripts as Record<string, string>) ?? {}
 
     let startCommand = ''
-    if (scripts.dev) {
+    if (type === 'expo') {
+      startCommand = `${pm === 'npm' ? 'npx' : pm} expo start`
+    } else if (type === 'react-native' && scripts.android) {
+      startCommand = `${pm} run android`
+    } else if (scripts.dev) {
       startCommand = `${pm} run dev`
     } else if (scripts.start) {
       startCommand = pm === 'npm' ? 'npm run start' : `${pm} start`

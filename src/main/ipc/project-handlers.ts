@@ -91,6 +91,7 @@ export function registerProjectHandlers(): void {
           color: '#6366f1',
           createdAt: new Date().toISOString(),
           lastOpenedAt: new Date().toISOString(),
+          openCount: 0,
           isGroup: true
         }
 
@@ -113,6 +114,7 @@ export function registerProjectHandlers(): void {
             color: '#3b82f6',
             createdAt: new Date().toISOString(),
             lastOpenedAt: new Date().toISOString(),
+            openCount: 0,
             parentId: groupId
           }
           projects.push(childProject)
@@ -142,7 +144,8 @@ export function registerProjectHandlers(): void {
           dbConnections: [],
           color: '#3b82f6',
           createdAt: new Date().toISOString(),
-          lastOpenedAt: new Date().toISOString()
+          lastOpenedAt: new Date().toISOString(),
+          openCount: 0
         }
 
         projects.push(project)
@@ -208,7 +211,81 @@ export function registerProjectHandlers(): void {
     }
   )
 
+  ipcMain.handle(IPC.PROJECT_OPEN_IN_EDITOR, async (_event, projectPath: string) => {
+    const { exec } = await import('child_process')
+    return new Promise<void>((resolve, reject) => {
+      exec(`code "${projectPath}"`, (err) => {
+        if (err) reject(new Error('Could not open VSCode. Make sure the `code` command is installed (Command Palette → "Shell Command: Install \'code\' command in PATH").'))
+        else resolve()
+      })
+    })
+  })
+
+  ipcMain.handle(IPC.PROJECT_GROUP_SYNC, async (_event, groupId: string) => {
+    const projects = store.get('projects', [])
+    const group = projects.find((p: ProjectConfig) => p.id === groupId)
+    if (!group || !group.path) throw new Error('Group not found')
+
+    const fs = await import('fs/promises')
+    const entries = await fs.readdir(group.path, { withFileTypes: true })
+    const subDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
+
+    const existingPaths = new Set(projects.map((p: ProjectConfig) => p.path))
+    const added: ProjectConfig[] = []
+
+    for (const dir of subDirs) {
+      const subPath = path.join(group.path, dir.name)
+      if (existingPaths.has(subPath)) continue
+      try {
+        const subEntries = await fs.readdir(subPath)
+        const hasProjectMarker = subEntries.some(file =>
+          ['package.json', 'requirements.txt', 'Cargo.toml', 'go.mod', 'Pipfile', 'pyproject.toml'].includes(file)
+        )
+        if (!hasProjectMarker) continue
+        const detection = await projectDetector.detect(subPath)
+        const child: ProjectConfig = {
+          id: uuid(),
+          name: dir.name,
+          path: subPath,
+          type: detection.type,
+          detectedScripts: detection.scripts,
+          startCommand: detection.startCommand,
+          packageManager: detection.packageManager,
+          customCommands: [],
+          envFiles: detection.envFiles,
+          apiEndpoints: [],
+          dbConnections: [],
+          color: '#3b82f6',
+          createdAt: new Date().toISOString(),
+          lastOpenedAt: new Date().toISOString(),
+          openCount: 0,
+          parentId: groupId
+        }
+        projects.push(child)
+        added.push(child)
+      } catch {
+        // skip unreadable dirs
+      }
+    }
+
+    store.set('projects', projects)
+    return added
+  })
+
   ipcMain.handle(IPC.PROJECT_LIST, async () => {
     return store.get('projects', [])
+  })
+
+  ipcMain.handle(IPC.PROJECT_OPEN, async (_event, id: string) => {
+    const projects = store.get('projects', [])
+    const index = projects.findIndex((p: ProjectConfig) => p.id === id)
+    if (index === -1) return
+    projects[index] = {
+      ...projects[index],
+      lastOpenedAt: new Date().toISOString(),
+      openCount: (projects[index].openCount || 0) + 1
+    }
+    store.set('projects', projects)
+    return projects[index]
   })
 }

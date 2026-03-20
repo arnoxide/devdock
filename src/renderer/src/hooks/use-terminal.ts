@@ -58,6 +58,11 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
     terminal.open(containerRef.current)
     fitAddon.fit()
 
+    // Replay scrollback from the backend buffer so history is preserved on navigation
+    window.api.getTerminalScrollback(sessionId).then((scrollback: string) => {
+      if (scrollback) terminal.write(scrollback)
+    })
+
     // Handle user input -> send to pty
     terminal.onData((data) => {
       if (sessionId) {

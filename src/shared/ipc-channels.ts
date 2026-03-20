@@ -6,6 +6,9 @@ export const IPC = {
   PROJECT_LIST: 'project:list',
   PROJECT_DETECT_TYPE: 'project:detect-type',
   PROJECT_BROWSE: 'project:browse',
+  PROJECT_OPEN: 'project:open',
+  PROJECT_GROUP_SYNC: 'project:group-sync',
+  PROJECT_OPEN_IN_EDITOR: 'project:open-in-editor',
 
   // Process / Dev Server Control
   PROCESS_START: 'process:start',
@@ -24,6 +27,8 @@ export const IPC = {
   TERMINAL_WRITE: 'terminal:write',
   TERMINAL_RESIZE: 'terminal:resize',
   TERMINAL_CLOSE: 'terminal:close',
+  TERMINAL_GET_SCROLLBACK: 'terminal:get-scrollback',
+  TERMINAL_GET_BY_PROJECT: 'terminal:get-by-project',
   // Main -> Renderer pushes
   TERMINAL_DATA: 'terminal:data',
   TERMINAL_EXIT: 'terminal:exit',
@@ -31,6 +36,8 @@ export const IPC = {
   // Port Management
   PORT_SCAN: 'port:scan',
   PORT_KILL: 'port:kill',
+  // Main -> Renderer pushes
+  PORT_STILL_IN_USE: 'port:still-in-use',
 
   // API Monitoring
   API_ADD_ENDPOINT: 'api:add-endpoint',

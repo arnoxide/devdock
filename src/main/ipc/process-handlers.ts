@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { IPC } from '../../shared/ipc-channels'
 import { ProjectConfig } from '../../shared/types'
 import { processManager } from '../services/process-manager'
+import { portScanner } from '../services/port-scanner'
 import { logCollector } from '../services/log-collector'
 import { systemMonitor } from '../services/system-monitor'
 import store from '../store'
@@ -41,6 +42,31 @@ export function registerProcessHandlers(): void {
       systemMonitor.trackProcess(runtime.pid, runtime.projectId)
     } else if (runtime.status === 'idle' || runtime.status === 'error') {
       if (runtime.pid) systemMonitor.untrackProcess(runtime.pid)
+
+      // If process stopped and had a port, check if port is still in use after a brief delay
+      if (runtime.port) {
+        const portToCheck = runtime.port
+        const projectId = runtime.projectId
+        setTimeout(async () => {
+          try {
+            const ports = await portScanner.scan()
+            const stillInUse = ports.find((p) => p.port === portToCheck)
+            if (stillInUse) {
+              const win = getMainWindow()
+              if (win && !win.isDestroyed()) {
+                win.webContents.send(IPC.PORT_STILL_IN_USE, {
+                  projectId,
+                  port: portToCheck,
+                  pid: stillInUse.pid,
+                  processName: stillInUse.processName
+                })
+              }
+            }
+          } catch {
+            // ignore port scan errors
+          }
+        }, 1500)
+      }
     }
   })
 

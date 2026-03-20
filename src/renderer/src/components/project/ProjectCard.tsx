@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Play, Square, RotateCw, Folder, Clock, Trash2 } from 'lucide-react'
+import { Play, Square, RotateCw, Folder, Clock, Trash2, Code2 } from 'lucide-react'
 import { ProjectConfig, ProjectRuntime } from '../../../../shared/types'
 import { useProcessStore } from '../../stores/process-store'
 import { useProjectStore } from '../../stores/project-store'
@@ -61,14 +61,23 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       onClick={() => navigate(`/projects/${project.id}`)}
       className="bg-dock-surface border border-dock-border rounded-xl p-4 hover:border-dock-accent/30 transition-all cursor-pointer group relative"
     >
-      {/* Delete Button - Shows on hover */}
-      <button
-        onClick={handleDelete}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-dock-bg/80 border border-dock-border opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:border-red-500/50 transition-all"
-        title="Remove project"
-      >
-        <Trash2 size={14} className="text-dock-muted hover:text-red-500" />
-      </button>
+      {/* Hover action buttons */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        <button
+          onClick={(e) => { e.stopPropagation(); window.api.openInEditor(project.path) }}
+          className="p-1.5 rounded-lg bg-dock-bg/80 border border-dock-border hover:bg-blue-500/10 hover:border-blue-500/50 transition-all"
+          title="Open in VSCode"
+        >
+          <Code2 size={13} className="text-dock-muted hover:text-blue-400" />
+        </button>
+        <button
+          onClick={handleDelete}
+          className="p-1.5 rounded-lg bg-dock-bg/80 border border-dock-border hover:bg-red-500/10 hover:border-red-500/50 transition-all"
+          title="Remove project"
+        >
+          <Trash2 size={13} className="text-dock-muted hover:text-red-500" />
+        </button>
+      </div>
 
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">

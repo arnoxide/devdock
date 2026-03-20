@@ -9,6 +9,8 @@ const typeConfig: Record<ProjectType, { label: string; color: string }> = {
   'react-cra': { label: 'React', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' },
   nextjs: { label: 'Next.js', color: 'bg-white/10 text-white border-white/20' },
   nodejs: { label: 'Node.js', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
+  expo: { label: 'Expo', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+  'react-native': { label: 'React Native', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' },
   python: { label: 'Python', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
   'python-django': { label: 'Django', color: 'bg-green-700/10 text-green-300 border-green-700/20' },
   'python-flask': { label: 'Flask', color: 'bg-gray-500/10 text-gray-300 border-gray-500/20' },

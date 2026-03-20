@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import QRCode from 'qrcode'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -7,12 +8,13 @@ import {
   RotateCw,
   Terminal,
   ScrollText,
-  Settings2,
   Zap,
-  Globe,
   Edit,
   Trash2,
-  GitBranch
+  GitBranch,
+  Smartphone,
+  AlertTriangle,
+  X
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useProcessStore } from '../stores/process-store'
@@ -25,31 +27,144 @@ import Button from '../components/ui/Button'
 import Tabs from '../components/ui/Tabs'
 import Card, { CardBody, CardHeader } from '../components/ui/Card'
 
+interface PortConflict {
+  projectId: string
+  port: number
+  pid: number
+  processName: string
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
+  const projects = useProjectStore((s) => s.projects)
+  const runtimes = useProjectStore((s) => s.runtimes)
   const project = useProjectStore((s) => s.projects.find((p) => p.id === id))
   const runtime = useProjectStore((s) => s.runtimes[id || ''])
 
   const removeProject = useProjectStore((s) => s.removeProject)
   const updateProject = useProjectStore((s) => s.updateProject)
+  const openProject = useProjectStore((s) => s.openProject)
 
   const startServer = useProcessStore((s) => s.startServer)
   const stopServer = useProcessStore((s) => s.stopServer)
   const restartServer = useProcessStore((s) => s.restartServer)
+  const outputs = useProcessStore((s) => s.outputs)
 
-  const [activeTab, setActiveTab] = useState('output')
+  const isInteractive = project?.type === 'expo' || project?.type === 'react-native'
+
+  const [activeTab, setActiveTab] = useState(() =>
+    project?.type === 'expo' || project?.type === 'react-native' ? 'terminal' : 'output'
+  )
   const [editingCommand, setEditingCommand] = useState(false)
   const [command, setCommand] = useState('')
+  const [portConflict, setPortConflict] = useState<PortConflict | null>(null)
+  const [terminalSessionId, setTerminalSessionId] = useState<string | null>(null)
 
   const status = runtime?.status || 'idle'
   const isRunning = status === 'running'
   const isTransitioning = status === 'starting' || status === 'stopping'
 
+  // For expo/RN: run the start command inside the PTY terminal
+  const runInTerminal = useCallback(async (cmd: string) => {
+    if (!project) return
+    try {
+      // Get or create a terminal session
+      let session = await window.api.getTerminalByProject(project.id)
+      if (!session) {
+        session = await window.api.createTerminal(project.id)
+      }
+      setTerminalSessionId(session.id)
+      setActiveTab('terminal')
+      // Small delay so the terminal mounts before we write
+      setTimeout(() => {
+        window.api.writeTerminal(session!.id, cmd + '\r')
+      }, 300)
+    } catch (e) {
+      console.error('runInTerminal failed', e)
+    }
+  }, [project])
+
+  // Track project open for recently-used / frequently-used stats
+  useEffect(() => {
+    if (id) openProject(id)
+  }, [id])
+
+  // Listen for port still-in-use events for this project
+  useEffect(() => {
+    const cleanup = window.api.onPortStillInUse((data: any) => {
+      if (data.projectId === id) {
+        setPortConflict(data)
+      }
+    })
+    return () => cleanup()
+  }, [id])
+
   useEffect(() => {
     if (project) setCommand(project.startCommand)
   }, [project?.startCommand])
+
+  // Sibling projects (same parentId, different id, not groups)
+  const siblings = useMemo(() => {
+    if (!project?.parentId) return []
+    return projects.filter(
+      (p) => p.parentId === project.parentId && p.id !== project.id && !p.isGroup
+    )
+  }, [projects, project?.parentId, project?.id])
+
+  const parentGroup = useMemo(() => {
+    if (!project?.parentId) return null
+    return projects.find((p) => p.id === project.parentId)
+  }, [projects, project?.parentId])
+
+  // For expo/RN: scan terminal scrollback buffer for the Metro URL
+  const [terminalOutput, setTerminalOutput] = useState('')
+  useEffect(() => {
+    if (!isInteractive || !terminalSessionId) return
+    // Poll the scrollback for URL detection
+    const poll = setInterval(async () => {
+      const buf = await window.api.getTerminalScrollback(terminalSessionId)
+      if (buf) setTerminalOutput(buf)
+    }, 1500)
+    return () => clearInterval(poll)
+  }, [isInteractive, terminalSessionId])
+
+  // Also listen to live terminal data for immediate detection
+  useEffect(() => {
+    if (!isInteractive || !terminalSessionId) return
+    const cleanup = window.api.onTerminalData((msg: any) => {
+      if (msg.sessionId === terminalSessionId) {
+        setTerminalOutput((prev) => prev + msg.data)
+      }
+    })
+    return () => cleanup()
+  }, [isInteractive, terminalSessionId])
+
+  const expoUrl = useMemo(() => {
+    if (!isInteractive) return null
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    const clean = stripAnsi(terminalOutput)
+    // Prefer exp:// (works over any network), fall back to LAN/localhost
+    const expMatch = clean.match(/exp:\/\/[^\s"'\x00-\x1f]+/)
+    if (expMatch) return expMatch[0]
+    const httpMatch = clean.match(/https?:\/\/(?:\d+\.\d+\.\d+\.\d+|localhost):\d+/)
+    if (httpMatch) return httpMatch[0]
+    return null
+  }, [isInteractive, terminalOutput])
+
+  // Generate QR code data URL whenever the expo URL changes
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const qrUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!expoUrl || expoUrl === qrUrlRef.current) return
+    qrUrlRef.current = expoUrl
+    QRCode.toDataURL(expoUrl, {
+      width: 200,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' }
+    }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+  }, [expoUrl])
 
   if (!project) {
     return (
@@ -76,6 +191,12 @@ export default function ProjectDetailPage() {
     navigate('/projects')
   }
 
+  const handleKillPort = async (): Promise<void> => {
+    if (!portConflict) return
+    await window.api.killPort(portConflict.port)
+    setPortConflict(null)
+  }
+
   const tabs = useMemo(() => [
     { id: 'output', label: 'Output', icon: <ScrollText size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
@@ -95,17 +216,61 @@ export default function ProjectDetailPage() {
   }, [project])
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full space-y-4">
+      {/* Port conflict modal */}
+      {portConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-dock-surface border border-dock-border rounded-xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-dock-yellow mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-dock-text">Port still in use</h3>
+                <p className="text-xs text-dock-muted mt-1">
+                  Port <span className="text-dock-accent font-mono">{portConflict.port}</span> is still
+                  being held by <span className="text-dock-text font-mono">{portConflict.processName}</span> (PID {portConflict.pid}).
+                </p>
+                <p className="text-xs text-dock-muted mt-1">
+                  This may be a process you started manually in another terminal. Do you want to kill it?
+                </p>
+              </div>
+              <button onClick={() => setPortConflict(null)} className="text-dock-muted hover:text-dock-text">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setPortConflict(null)}>
+                Keep it
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleKillPort}>
+                Kill port {portConflict.port}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate('/projects')}
+          onClick={() => parentGroup ? navigate(`/projects`) : navigate('/projects')}
           className="text-dock-muted hover:text-dock-text transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          {/* Breadcrumb for grouped projects */}
+          {parentGroup && (
+            <p className="text-xs text-dock-muted mb-0.5">
+              <button
+                onClick={() => navigate('/projects')}
+                className="hover:text-dock-text transition-colors"
+              >
+                {parentGroup.name}
+              </button>
+              {' / '}
+            </p>
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-dock-text">{project.name}</h1>
             <ProjectTypeBadge type={project.type} />
             <StatusIndicator status={status} size="md" />
@@ -115,10 +280,20 @@ export default function ProjectDetailPage() {
               </span>
             )}
           </div>
-          <p className="text-xs text-dock-muted mt-0.5">{project.path}</p>
+          <p className="text-xs text-dock-muted mt-0.5 truncate">{project.path}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {isRunning ? (
+        <div className="flex items-center gap-2 shrink-0">
+          {isInteractive ? (
+            // Expo / React Native — run inside PTY terminal
+            <Button
+              variant="success"
+              onClick={() => runInTerminal(project.startCommand)}
+              disabled={!project.startCommand}
+            >
+              <Terminal size={14} />
+              Run in Terminal
+            </Button>
+          ) : isRunning ? (
             <>
               <Button
                 variant="secondary"
@@ -153,10 +328,76 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
+      {/* Sibling project switcher */}
+      {siblings.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-dock-muted">Switch to:</span>
+          {siblings.map((sibling) => {
+            const siblingStatus = runtimes[sibling.id]?.status || 'idle'
+            return (
+              <button
+                key={sibling.id}
+                onClick={() => navigate(`/projects/${sibling.id}`)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-dock-surface border border-dock-border
+                  hover:border-dock-accent/50 transition-colors text-xs text-dock-text"
+              >
+                <StatusIndicator status={siblingStatus} />
+                {sibling.name}
+                <ProjectTypeBadge type={sibling.type} />
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Expo banner */}
+      {isInteractive && (
+        <div className={`border rounded-lg overflow-hidden transition-colors ${
+          terminalSessionId ? 'border-dock-accent/30 bg-dock-surface' : 'border-dock-border bg-dock-surface/50'
+        }`}>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Smartphone size={16} className={terminalSessionId ? 'text-dock-accent' : 'text-dock-muted'} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-dock-text">
+                {project.type === 'expo' ? 'Expo Go' : 'React Native Metro'}
+              </p>
+              {expoUrl ? (
+                <p className="text-xs text-dock-accent font-mono truncate mt-0.5">{expoUrl}</p>
+              ) : terminalSessionId ? (
+                <p className="text-xs text-dock-muted mt-0.5">Waiting for Metro bundler...</p>
+              ) : (
+                <p className="text-xs text-dock-muted mt-0.5">Click "Run in Terminal" to start and get the QR code</p>
+              )}
+            </div>
+          </div>
+
+          {/* QR code */}
+          {qrDataUrl && (
+            <div className="border-t border-dock-border px-4 py-4 flex items-start gap-6">
+              <div className="shrink-0 p-2 bg-white rounded-lg shadow-sm">
+                <img src={qrDataUrl} alt="Expo QR Code" className="w-40 h-40" />
+              </div>
+              <div className="flex-1 pt-1 space-y-2">
+                <p className="text-xs font-medium text-dock-text">Scan with Expo Go</p>
+                <p className="text-xs text-dock-muted">
+                  Open the <span className="text-dock-text">Expo Go</span> app on your phone and scan this QR code to open your project.
+                </p>
+                {expoUrl && (
+                  <div className="mt-2">
+                    <p className="text-[10px] text-dock-muted mb-1">URL</p>
+                    <code className="text-xs text-dock-accent font-mono break-all">{expoUrl}</code>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Start Command */}
       <Card>
         <CardBody className="flex items-center gap-3">
-          <span className="text-xs text-dock-muted">Command:</span>
+          <span className="text-xs text-dock-muted shrink-0">Command:</span>
           {editingCommand ? (
             <div className="flex items-center gap-2 flex-1">
               <input
@@ -172,12 +413,12 @@ export default function ProjectDetailPage() {
             </div>
           ) : (
             <>
-              <code className="flex-1 text-sm font-mono text-dock-accent">
+              <code className="flex-1 text-sm font-mono text-dock-accent truncate">
                 {project.startCommand || 'No command configured'}
               </code>
               <button
                 onClick={() => setEditingCommand(true)}
-                className="text-dock-muted hover:text-dock-text transition-colors"
+                className="text-dock-muted hover:text-dock-text transition-colors shrink-0"
               >
                 <Edit size={14} />
               </button>
@@ -189,16 +430,16 @@ export default function ProjectDetailPage() {
       {/* Tabs */}
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {/* Tab Content */}
-      <div className="min-h-[400px]">
+      {/* Tab Content — fills remaining viewport height */}
+      <div className="flex-1 min-h-[calc(100vh-420px)]">
         {activeTab === 'output' && (
-          <div className="h-[400px]">
+          <div className="h-full min-h-[calc(100vh-420px)]">
             <ProcessOutput projectId={project.id} />
           </div>
         )}
 
         {activeTab === 'terminal' && (
-          <div className="h-[400px]">
+          <div className="h-full min-h-[calc(100vh-420px)]">
             <TerminalView projectId={project.id} />
           </div>
         )}

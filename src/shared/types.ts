@@ -7,6 +7,8 @@ export type ProjectType =
   | 'react-cra'
   | 'nextjs'
   | 'nodejs'
+  | 'expo'
+  | 'react-native'
   | 'python'
   | 'python-django'
   | 'python-flask'
@@ -32,6 +34,7 @@ export interface ProjectConfig {
   color: string
   createdAt: string
   lastOpenedAt: string
+  openCount: number
   parentId?: string // ID of parent group/folder
   isGroup?: boolean // True if this is a folder group (not a runnable project)
 }

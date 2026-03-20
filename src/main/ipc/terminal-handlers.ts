@@ -48,4 +48,12 @@ export function registerTerminalHandlers(): void {
   ipcMain.handle(IPC.TERMINAL_CLOSE, async (_event, sessionId: string) => {
     terminalManager.close(sessionId)
   })
+
+  ipcMain.handle(IPC.TERMINAL_GET_SCROLLBACK, async (_event, sessionId: string) => {
+    return terminalManager.getScrollback(sessionId)
+  })
+
+  ipcMain.handle(IPC.TERMINAL_GET_BY_PROJECT, async (_event, projectId: string) => {
+    return terminalManager.getSessionByProject(projectId)
+  })
 }

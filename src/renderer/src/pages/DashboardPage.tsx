@@ -12,7 +12,9 @@ import {
   Loader2,
   Clock,
   GitBranch,
-  ExternalLink
+  ExternalLink,
+  TrendingUp,
+  History
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useSystemStore } from '../stores/system-store'
@@ -55,14 +57,80 @@ export default function DashboardPage() {
 
   useEffect(() => {
     startMonitoring()
+    loadProjects()
   }, [])
+
+  const runnableProjects = useMemo(() =>
+    projects.filter((p) => !p.isGroup),
+    [projects])
 
   const runningCount = useMemo(() =>
     Object.values(runtimes).filter((r) => r.status === 'running').length,
     [runtimes])
 
+  // Recently opened: top 4 by lastOpenedAt, only projects opened at least once
+  const recentlyOpened = useMemo(() => {
+    return [...runnableProjects]
+      .filter((p) => (p.openCount ?? 0) > 0)
+      .sort((a, b) => new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime())
+      .slice(0, 4)
+  }, [runnableProjects])
+
+  // Frequently used: top 4 by openCount (exclude already shown in recently opened)
+  const recentIds = useMemo(() => new Set(recentlyOpened.map((p) => p.id)), [recentlyOpened])
+  const frequentlyUsed = useMemo(() => {
+    return [...runnableProjects]
+      .filter((p) => (p.openCount ?? 0) > 1 && !recentIds.has(p.id))
+      .sort((a, b) => (b.openCount ?? 0) - (a.openCount ?? 0))
+      .slice(0, 4)
+  }, [runnableProjects, recentIds])
+
+  // Running projects
+  const runningProjects = useMemo(() =>
+    runnableProjects.filter((p) => runtimes[p.id]?.status === 'running'),
+    [runnableProjects, runtimes])
+
   const recentLogs = useMemo(() => entries.slice(-8), [entries])
   const recentActions = useMemo(() => actions.slice(0, 8), [actions])
+
+  const ProjectRow = ({ project }: { project: typeof projects[0] }) => {
+    const runtime = runtimes[project.id]
+    const status = runtime?.status || 'idle'
+    const isRunning = status === 'running'
+    return (
+      <div
+        className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-dock-card/50 cursor-pointer transition-colors"
+        onClick={() => navigate(`/projects/${project.id}`)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <StatusIndicator status={status} />
+          <span className="text-sm text-dock-text truncate">{project.name}</span>
+          <ProjectTypeBadge type={project.type} />
+          {runtime?.port && (
+            <span className="text-xs text-dock-accent shrink-0">:{runtime.port}</span>
+          )}
+        </div>
+        <div className="shrink-0">
+          {isRunning ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); stopServer(project.id) }}
+              className="text-dock-red hover:text-red-400 transition-colors"
+            >
+              <Square size={14} />
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); startServer(project.id) }}
+              className="text-dock-green hover:text-green-400 transition-colors"
+              disabled={!project.startCommand}
+            >
+              <Play size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -82,7 +150,7 @@ export default function DashboardPage() {
               <FolderKanban size={20} className="text-dock-accent" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-dock-text">{projects.length}</p>
+              <p className="text-2xl font-bold text-dock-text">{runnableProjects.length}</p>
               <p className="text-xs text-dock-muted">Projects</p>
             </div>
           </CardBody>
@@ -149,66 +217,87 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
 
-        {/* Projects Quick View */}
+        {/* Running now */}
         <Card className="col-span-2">
           <CardHeader className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-dock-text">Projects</h2>
+            <h2 className="text-sm font-semibold text-dock-text flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-dock-green animate-pulse" />
+              Running now
+            </h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/projects')}>
-              View All
+              All Projects
             </Button>
           </CardHeader>
-          <CardBody className="space-y-2 max-h-64 overflow-y-auto">
-            {projects.length === 0 ? (
+          <CardBody className="space-y-1 max-h-48 overflow-y-auto">
+            {runningProjects.length === 0 ? (
+              <p className="text-xs text-dock-muted text-center py-4">No projects running</p>
+            ) : (
+              runningProjects.map((p) => <ProjectRow key={p.id} project={p} />)
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* Recently opened + Frequently used */}
+      <div className="grid grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex items-center gap-2">
+            <History size={15} className="text-dock-muted" />
+            <h2 className="text-sm font-semibold text-dock-text">Recently Opened</h2>
+          </CardHeader>
+          <CardBody className="space-y-1">
+            {recentlyOpened.length === 0 ? (
               <p className="text-xs text-dock-muted text-center py-4">
-                No projects added yet. Go to Projects to add one.
+                Open a project to see it here
               </p>
             ) : (
-              projects.slice(0, 6).map((project) => {
-                const runtime = runtimes[project.id]
-                const status = runtime?.status || 'idle'
-                const isRunning = status === 'running'
-
-                return (
-                  <div
-                    key={project.id}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-dock-card/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/projects/${project.id}`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <StatusIndicator status={status} />
-                      <span className="text-sm text-dock-text">{project.name}</span>
-                      <ProjectTypeBadge type={project.type} />
-                      {runtime?.port && (
-                        <span className="text-xs text-dock-accent">:{runtime.port}</span>
-                      )}
-                    </div>
-                    <div>
-                      {isRunning ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            stopServer(project.id)
-                          }}
-                          className="text-dock-red hover:text-red-400 transition-colors"
-                        >
-                          <Square size={14} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            startServer(project.id)
-                          }}
-                          className="text-dock-green hover:text-green-400 transition-colors"
-                          disabled={!project.startCommand}
-                        >
-                          <Play size={14} />
-                        </button>
-                      )}
-                    </div>
+              recentlyOpened.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-dock-card/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/projects/${p.id}`)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <StatusIndicator status={runtimes[p.id]?.status || 'idle'} />
+                    <span className="text-sm text-dock-text truncate">{p.name}</span>
+                    <ProjectTypeBadge type={p.type} />
                   </div>
-                )
-              })
+                  <span className="text-xs text-dock-muted shrink-0 ml-2">
+                    {formatTimeAgo(p.lastOpenedAt)}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center gap-2">
+            <TrendingUp size={15} className="text-dock-muted" />
+            <h2 className="text-sm font-semibold text-dock-text">Frequently Used</h2>
+          </CardHeader>
+          <CardBody className="space-y-1">
+            {frequentlyUsed.length === 0 ? (
+              <p className="text-xs text-dock-muted text-center py-4">
+                Projects you open often appear here
+              </p>
+            ) : (
+              frequentlyUsed.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-dock-card/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/projects/${p.id}`)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <StatusIndicator status={runtimes[p.id]?.status || 'idle'} />
+                    <span className="text-sm text-dock-text truncate">{p.name}</span>
+                    <ProjectTypeBadge type={p.type} />
+                  </div>
+                  <span className="text-xs text-dock-muted shrink-0 ml-2">
+                    {p.openCount ?? 0}x
+                  </span>
+                </div>
+              ))
             )}
           </CardBody>
         </Card>

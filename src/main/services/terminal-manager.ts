@@ -1,14 +1,32 @@
-import * as pty from 'node-pty'
 import { v4 as uuid } from 'uuid'
 import { TerminalSession } from '../../shared/types'
 
-interface ManagedTerminal {
-  ptyProcess: pty.IPty
-  session: TerminalSession
+// Lazy-load node-pty so the app starts even if the native module isn't built
+let _pty: typeof import('node-pty') | null = null
+function getPty(): typeof import('node-pty') {
+  if (!_pty) {
+    try {
+      _pty = require('node-pty')
+    } catch {
+      throw new Error(
+        'node-pty is not available. Run "npx electron-rebuild -f -w node-pty" to build it for your platform.'
+      )
+    }
+  }
+  return _pty
 }
+
+interface ManagedTerminal {
+  ptyProcess: any
+  session: TerminalSession
+  scrollback: string
+}
+
+const MAX_SCROLLBACK_BYTES = 150_000
 
 export class TerminalManager {
   private terminals = new Map<string, ManagedTerminal>()
+  private projectToSession = new Map<string, string>()
   private onDataCallback: ((sessionId: string, data: string) => void) | null = null
   private onExitCallback: ((sessionId: string, exitCode: number) => void) | null = null
 
@@ -24,7 +42,7 @@ export class TerminalManager {
     const sessionId = uuid()
     const shellPath = shell || process.env.SHELL || '/bin/bash'
 
-    const ptyProcess = pty.spawn(shellPath, [], {
+    const ptyProcess = getPty().spawn(shellPath, [], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
@@ -41,16 +59,24 @@ export class TerminalManager {
       createdAt: new Date().toISOString()
     }
 
+    const managed: ManagedTerminal = { ptyProcess, session, scrollback: '' }
+
     ptyProcess.onData((data) => {
+      managed.scrollback += data
+      if (managed.scrollback.length > MAX_SCROLLBACK_BYTES) {
+        managed.scrollback = managed.scrollback.slice(-MAX_SCROLLBACK_BYTES)
+      }
       this.onDataCallback?.(sessionId, data)
     })
 
     ptyProcess.onExit(({ exitCode }) => {
       this.onExitCallback?.(sessionId, exitCode)
+      this.projectToSession.delete(projectId)
       this.terminals.delete(sessionId)
     })
 
-    this.terminals.set(sessionId, { ptyProcess, session })
+    this.projectToSession.set(projectId, sessionId)
+    this.terminals.set(sessionId, managed)
     return session
   }
 
@@ -71,9 +97,20 @@ export class TerminalManager {
   close(sessionId: string): void {
     const terminal = this.terminals.get(sessionId)
     if (terminal) {
+      this.projectToSession.delete(terminal.session.projectId)
       terminal.ptyProcess.kill()
       this.terminals.delete(sessionId)
     }
+  }
+
+  getScrollback(sessionId: string): string {
+    return this.terminals.get(sessionId)?.scrollback ?? ''
+  }
+
+  getSessionByProject(projectId: string): TerminalSession | null {
+    const sessionId = this.projectToSession.get(projectId)
+    if (!sessionId) return null
+    return this.terminals.get(sessionId)?.session ?? null
   }
 
   async shutdown(): Promise<void> {

@@ -15,10 +15,13 @@ const api = {
   // Project
   addProject: (path: string) => ipcRenderer.invoke(IPC.PROJECT_ADD, path),
   removeProject: (id: string) => ipcRenderer.invoke(IPC.PROJECT_REMOVE, id),
+  syncGroup: (groupId: string) => ipcRenderer.invoke(IPC.PROJECT_GROUP_SYNC, groupId),
+  openInEditor: (path: string) => ipcRenderer.invoke(IPC.PROJECT_OPEN_IN_EDITOR, path),
   updateProject: (config: unknown) => ipcRenderer.invoke(IPC.PROJECT_UPDATE, config),
   listProjects: () => ipcRenderer.invoke(IPC.PROJECT_LIST),
   detectProjectType: (path: string) => ipcRenderer.invoke(IPC.PROJECT_DETECT_TYPE, path),
   browseForProject: () => ipcRenderer.invoke(IPC.PROJECT_BROWSE),
+  openProject: (id: string) => ipcRenderer.invoke(IPC.PROJECT_OPEN, id),
 
   // Process
   startProcess: (projectId: string, command?: string) =>
@@ -37,6 +40,10 @@ const api = {
   resizeTerminal: (sessionId: string, cols: number, rows: number) =>
     ipcRenderer.invoke(IPC.TERMINAL_RESIZE, sessionId, cols, rows),
   closeTerminal: (sessionId: string) => ipcRenderer.invoke(IPC.TERMINAL_CLOSE, sessionId),
+  getTerminalScrollback: (sessionId: string) =>
+    ipcRenderer.invoke(IPC.TERMINAL_GET_SCROLLBACK, sessionId),
+  getTerminalByProject: (projectId: string) =>
+    ipcRenderer.invoke(IPC.TERMINAL_GET_BY_PROJECT, projectId),
 
   // Port
   scanPorts: () => ipcRenderer.invoke(IPC.PORT_SCAN),
@@ -179,7 +186,8 @@ const api = {
   onGitHubPRsUpdate: createListener(IPC.GITHUB_PRS_UPDATE),
   onGitHubIssuesUpdate: createListener(IPC.GITHUB_ISSUES_UPDATE),
   onGitHubActionsUpdate: createListener(IPC.GITHUB_ACTIONS_UPDATE),
-  onGitHubNotificationsUpdate: createListener(IPC.GITHUB_NOTIFICATIONS_UPDATE)
+  onGitHubNotificationsUpdate: createListener(IPC.GITHUB_NOTIFICATIONS_UPDATE),
+  onPortStillInUse: createListener(IPC.PORT_STILL_IN_USE)
 }
 
 contextBridge.exposeInMainWorld('api', api)

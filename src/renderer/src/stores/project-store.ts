@@ -8,10 +8,12 @@ interface ProjectStore {
 
   loadProjects: () => Promise<void>
   addProject: (path: string) => Promise<ProjectConfig>
+  syncGroup: (groupId: string) => Promise<ProjectConfig[]>
   removeProject: (id: string) => Promise<void>
   updateProject: (config: Partial<ProjectConfig> & { id: string }) => Promise<void>
   updateRuntime: (runtime: ProjectRuntime) => void
   setRuntimes: (runtimes: ProjectRuntime[]) => void
+  openProject: (id: string) => Promise<void>
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -43,6 +45,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     return project
   },
 
+  syncGroup: async (groupId: string) => {
+    const added = await window.api.syncGroup(groupId)
+    if (added.length > 0) {
+      set((state) => ({ projects: [...state.projects, ...added] }))
+    }
+    return added
+  },
+
   removeProject: async (id: string) => {
     await window.api.removeProject(id)
     set((state) => ({
@@ -69,5 +79,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       map[r.projectId] = r
     }
     set({ runtimes: map })
+  },
+
+  openProject: async (id: string) => {
+    const updated = await window.api.openProject(id)
+    if (updated) {
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === id ? updated : p))
+      }))
+    }
   }
 }))

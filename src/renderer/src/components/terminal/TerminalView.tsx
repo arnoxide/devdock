@@ -10,21 +10,21 @@ interface TerminalViewProps {
 export default function TerminalView({ projectId }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const { createSession, closeSession } = useTerminalStore()
+  const { getOrCreateSession } = useTerminalStore()
 
   useEffect(() => {
-    let id: string | null = null
+    let mounted = true
 
     const init = async (): Promise<void> => {
-      const session = await createSession(projectId)
-      id = session.id
-      setSessionId(session.id)
+      const session = await getOrCreateSession(projectId)
+      if (mounted) setSessionId(session.id)
     }
 
     init()
 
+    // Don't close the PTY session on unmount — keep it alive for when user comes back
     return () => {
-      if (id) closeSession(id)
+      mounted = false
     }
   }, [projectId])
 
