@@ -159,5 +159,11 @@ export const IPC = {
   VAULT_EXPORT_ENV: 'vault:export-env',
   VAULT_IMPORT_ENV: 'vault:import-env',
   VAULT_ENCRYPT_VALUE: 'vault:encrypt-value',
-  VAULT_DECRYPT_VALUE: 'vault:decrypt-value'
+  VAULT_DECRYPT_VALUE: 'vault:decrypt-value',
+
+  // Local Tunnel / Link Sharing
+  TUNNEL_START: 'tunnel:start',
+  TUNNEL_STOP: 'tunnel:stop',
+  TUNNEL_GET_URL: 'tunnel:get-url',
+  TUNNEL_PATCH_VITE: 'tunnel:patch-vite'
 } as const

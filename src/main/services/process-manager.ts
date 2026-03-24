@@ -25,6 +25,17 @@ interface ManagedProcess {
 
 export class ProcessManager extends EventEmitter {
   private processes = new Map<string, ManagedProcess>()
+  private outputBuffers = new Map<string, string[]>() // last 500 lines per project
+
+  getOutputBuffer(projectId: string): string[] {
+    return this.outputBuffers.get(projectId) ?? []
+  }
+
+  getStatus(projectId: string): { status: string; port: number | null } | null {
+    const m = this.processes.get(projectId)
+    if (!m) return null
+    return { status: m.status, port: m.port }
+  }
 
   async start(projectId: string, command: string, cwd: string): Promise<void> {
     if (this.processes.has(projectId)) {
@@ -52,8 +63,16 @@ export class ProcessManager extends EventEmitter {
     }
     this.processes.set(projectId, managed)
 
+    const bufferLine = (line: string): void => {
+      const buf = this.outputBuffers.get(projectId) ?? []
+      buf.push(line)
+      if (buf.length > 500) buf.shift()
+      this.outputBuffers.set(projectId, buf)
+    }
+
     child.stdout?.on('data', (data: Buffer) => {
       const text = data.toString()
+      bufferLine(text)
       this.emit('output', { projectId, data: text, source: 'stdout' })
       this.detectPort(managed, text)
 
@@ -65,6 +84,7 @@ export class ProcessManager extends EventEmitter {
 
     child.stderr?.on('data', (data: Buffer) => {
       const text = data.toString()
+      bufferLine(text)
       this.emit('output', { projectId, data: text, source: 'stderr' })
       // Some frameworks output to stderr even on success (e.g., webpack warnings)
       this.detectPort(managed, text)

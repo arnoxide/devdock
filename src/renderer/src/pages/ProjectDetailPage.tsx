@@ -14,7 +14,12 @@ import {
   GitBranch,
   Smartphone,
   AlertTriangle,
-  X
+  X,
+  Share2,
+  Copy,
+  Check,
+  Link,
+  Loader2
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useProcessStore } from '../stores/process-store'
@@ -61,6 +66,10 @@ export default function ProjectDetailPage() {
   const [command, setCommand] = useState('')
   const [portConflict, setPortConflict] = useState<PortConflict | null>(null)
   const [terminalSessionId, setTerminalSessionId] = useState<string | null>(null)
+  const [tunnelInfo, setTunnelInfo] = useState<{ url: string; password: string } | null>(null)
+  const [tunnelLoading, setTunnelLoading] = useState(false)
+  const [tunnelCopied, setTunnelCopied] = useState(false)
+  const [vitePatched, setVitePatched] = useState(false)
 
   const status = runtime?.status || 'idle'
   const isRunning = status === 'running'
@@ -117,6 +126,45 @@ export default function ProjectDetailPage() {
     if (!project?.parentId) return null
     return projects.find((p) => p.id === project.parentId)
   }, [projects, project?.parentId])
+
+  // Auto-clear tunnel when server stops
+  useEffect(() => {
+    if (!isRunning && tunnelInfo && project) {
+      window.api.stopTunnel(project.id)
+      setTunnelInfo(null)
+    }
+  }, [isRunning])
+
+  const handleStartTunnel = useCallback(async () => {
+    if (!project || !runtime?.port) return
+    setTunnelLoading(true)
+    try {
+      const info = await window.api.startTunnel(project.id, runtime.port)
+      setTunnelInfo(info)
+      setVitePatched(false)
+    } catch {
+      setTunnelInfo(null)
+    } finally {
+      setTunnelLoading(false)
+    }
+  }, [project, runtime?.port])
+
+  const handleStopTunnel = useCallback(async () => {
+    if (!project) return
+    await window.api.stopTunnel(project.id)
+    setTunnelInfo(null)
+  }, [project])
+
+  // Copy URL + password as a ready-to-paste message
+  const copyTunnelUrl = useCallback(() => {
+    if (!tunnelInfo) return
+    const text = tunnelInfo.password
+      ? `Link: ${tunnelInfo.url}\nPassword: ${tunnelInfo.password}`
+      : tunnelInfo.url
+    navigator.clipboard.writeText(text)
+    setTunnelCopied(true)
+    setTimeout(() => setTunnelCopied(false), 2000)
+  }, [tunnelInfo])
 
   // For expo/RN: scan terminal scrollback buffer for the Metro URL
   const [terminalOutput, setTerminalOutput] = useState('')
@@ -216,7 +264,7 @@ export default function ProjectDetailPage() {
   }, [project])
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full gap-4">
       {/* Port conflict modal */}
       {portConflict && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -295,6 +343,20 @@ export default function ProjectDetailPage() {
             </Button>
           ) : isRunning ? (
             <>
+              {/* Share / Tunnel button — only when port is known */}
+              {runtime?.port && (
+                tunnelInfo ? (
+                  <Button variant="secondary" onClick={handleStopTunnel} title="Stop sharing">
+                    <Link size={14} className="text-dock-accent" />
+                    Sharing
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={handleStartTunnel} disabled={tunnelLoading} title="Share a public link">
+                    {tunnelLoading ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                    Share
+                  </Button>
+                )
+              )}
               <Button
                 variant="secondary"
                 onClick={() => restartServer(project.id)}
@@ -347,6 +409,70 @@ export default function ProjectDetailPage() {
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Tunnel / Share banner */}
+      {tunnelInfo && (
+        <div className="bg-dock-surface border border-dock-accent/30 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="w-7 h-7 rounded-lg bg-dock-accent/10 flex items-center justify-center shrink-0">
+              <Link size={14} className="text-dock-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-dock-text">Public link active</p>
+              <p className="text-xs font-mono text-dock-accent truncate mt-0.5">{tunnelInfo.url}</p>
+            </div>
+            <button
+              onClick={copyTunnelUrl}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-dock-border hover:bg-dock-accent/10 hover:border-dock-accent/40 transition-all text-xs text-dock-muted hover:text-dock-accent shrink-0"
+              title="Copy link + password to clipboard"
+            >
+              {tunnelCopied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              {tunnelCopied ? 'Copied!' : 'Copy all'}
+            </button>
+            <button
+              onClick={handleStopTunnel}
+              className="p-1.5 rounded-lg border border-dock-border hover:bg-red-500/10 hover:border-red-500/40 transition-all text-dock-muted hover:text-red-400 shrink-0"
+              title="Stop sharing"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          {tunnelInfo.password && (
+            <div className="flex items-center gap-2 px-4 py-2 border-t border-dock-border/50 bg-dock-bg/40">
+              <AlertTriangle size={11} className="text-dock-yellow shrink-0" />
+              <p className="text-[11px] text-dock-muted flex-1">
+                Visitor needs a <span className="text-dock-text font-medium">tunnel password</span>
+                {': '}
+                <span className="font-mono text-dock-accent">{tunnelInfo.password}</span>
+              </p>
+            </div>
+          )}
+          {/* Vite host-check fix */}
+          {(project.type === 'vite' || project.type === 'nextjs' || project.type === 'react-cra') && !vitePatched && (
+            <div className="flex items-center gap-2 px-4 py-2 border-t border-dock-border/50 bg-dock-yellow/5">
+              <AlertTriangle size={11} className="text-dock-yellow shrink-0" />
+              <p className="text-[11px] text-dock-muted flex-1">
+                Getting a <span className="text-dock-text">"host not allowed"</span> error? Vite blocks external hosts by default.
+              </p>
+              <button
+                onClick={async () => {
+                  const result = await window.api.patchViteTunnelConfig(project.path)
+                  if (result.patched || result.reason === 'already set') setVitePatched(true)
+                }}
+                className="shrink-0 px-2.5 py-1 rounded-md border border-dock-yellow/40 bg-dock-yellow/10 text-dock-yellow text-[11px] hover:bg-dock-yellow/20 transition-all"
+              >
+                Fix automatically
+              </button>
+            </div>
+          )}
+          {vitePatched && (
+            <div className="flex items-center gap-2 px-4 py-2 border-t border-dock-border/50 bg-green-500/5">
+              <Check size={11} className="text-green-400 shrink-0" />
+              <p className="text-[11px] text-dock-muted">Vite config patched — restart your server for it to take effect.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -430,16 +556,16 @@ export default function ProjectDetailPage() {
       {/* Tabs */}
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {/* Tab Content — fills remaining viewport height */}
-      <div className="flex-1 min-h-[calc(100vh-420px)]">
+      {/* Tab Content */}
+      <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === 'output' && (
-          <div className="h-full min-h-[calc(100vh-420px)]">
+          <div className="flex-1 overflow-hidden">
             <ProcessOutput projectId={project.id} />
           </div>
         )}
 
         {activeTab === 'terminal' && (
-          <div className="h-full min-h-[calc(100vh-420px)]">
+          <div className="flex-1 overflow-hidden flex flex-col">
             <TerminalView projectId={project.id} />
           </div>
         )}

@@ -3,6 +3,8 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import store from './store'
 import { registerAllHandlers } from './ipc'
+import { stopAllTunnels } from './services/tunnel-service'
+import { startRemoteServer, stopRemoteServer } from '../remote/server'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -15,7 +17,7 @@ function createTray(): void {
   const icon = nativeImage.createFromPath(iconPath)
 
   if (icon.isEmpty() && process.platform === 'darwin') {
-    // macOS requires a valid tray icon — skip tray if icon is missing
+    // macOS requires a valid tray icon — skip tray if icon is missing, so this will fix it
     console.warn('[DevDock] Tray icon not found, skipping tray creation')
     return
   }
@@ -48,6 +50,9 @@ function createTray(): void {
 
 function createWindow(): void {
   const bounds = store.get('windowBounds', { x: 100, y: 100, width: 1400, height: 900 })
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/icon.png')
+    : join(process.resourcesPath, 'icon.png')
 
   const isMac = process.platform === 'darwin'
 
@@ -59,6 +64,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
+    icon: iconPath,
     backgroundColor: '#0f1117',
     titleBarStyle: 'hidden',
     ...(isMac
@@ -144,6 +150,7 @@ app.whenReady().then(() => {
 
   registerAllHandlers()
   createWindow()
+  startRemoteServer().catch((err) => console.error('[DevDock Remote] Failed to start:', err))
 
   try {
     createTray()
@@ -155,6 +162,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('before-quit', () => { stopAllTunnels(); stopRemoteServer() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

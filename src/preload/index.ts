@@ -165,6 +165,12 @@ const api = {
   vaultEncryptValue: (value: string) => ipcRenderer.invoke(IPC.VAULT_ENCRYPT_VALUE, value),
   vaultDecryptValue: (encrypted: string) => ipcRenderer.invoke(IPC.VAULT_DECRYPT_VALUE, encrypted),
 
+  // Tunnel / Link Sharing
+  startTunnel: (projectId: string, port: number) => ipcRenderer.invoke(IPC.TUNNEL_START, projectId, port),
+  stopTunnel: (projectId: string) => ipcRenderer.invoke(IPC.TUNNEL_STOP, projectId),
+  getTunnelUrl: (projectId: string) => ipcRenderer.invoke(IPC.TUNNEL_GET_URL, projectId),
+  patchViteTunnelConfig: (projectPath: string) => ipcRenderer.invoke(IPC.TUNNEL_PATCH_VITE, projectPath),
+
   // Event listeners (Main -> Renderer)
   onProcessOutput: createListener(IPC.PROCESS_OUTPUT),
   onProcessStatusChanged: createListener(IPC.PROCESS_STATUS_CHANGED),

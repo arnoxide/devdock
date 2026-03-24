@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['node-pty']
+        external: ['node-pty', 'express', 'socket.io', 'jsonwebtoken', 'bcryptjs', 'cors']
       }
     }
   },

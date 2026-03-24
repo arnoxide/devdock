@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -12,6 +12,29 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const copySelection = useCallback(() => {
+    const term = terminalRef.current
+    if (!term) return false
+    const sel = term.getSelection()
+    if (sel) {
+      navigator.clipboard.writeText(sel)
+      return true
+    }
+    return false
+  }, [])
+
+  const copyAll = useCallback(async () => {
+    if (!sessionId) return
+    const scrollback = await window.api.getTerminalScrollback(sessionId)
+    const text = scrollback || ''
+    // Strip ANSI escape codes before copying
+    const clean = text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+    await navigator.clipboard.writeText(clean)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [sessionId])
 
   const initTerminal = useCallback(() => {
     if (!containerRef.current || !sessionId) return
@@ -25,6 +48,8 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      copyOnSelect: true,
+      rightClickSelectsWord: true,
       theme: {
         background: '#0f1117',
         foreground: '#e4e6f0',
@@ -56,7 +81,22 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
     terminal.loadAddon(new WebLinksAddon())
 
     terminal.open(containerRef.current)
-    fitAddon.fit()
+
+    const doFit = (): void => {
+      try {
+        if (containerRef.current && containerRef.current.offsetHeight > 0) {
+          fitAddon.fit()
+          if (sessionId) window.api.resizeTerminal(sessionId, terminal.cols, terminal.rows)
+        }
+      } catch { /* ignore fit errors during layout */ }
+    }
+
+    // Try fitting at multiple points — layout may not be settled on first frame
+    requestAnimationFrame(() => {
+      doFit()
+      setTimeout(doFit, 100)
+      setTimeout(doFit, 300)
+    })
 
     // Replay scrollback from the backend buffer so history is preserved on navigation
     window.api.getTerminalScrollback(sessionId).then((scrollback: string) => {
@@ -77,13 +117,23 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
       }
     })
 
-    // Handle resize
-    const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
-      if (sessionId) {
-        window.api.resizeTerminal(sessionId, terminal.cols, terminal.rows)
+    // Right-click: copy selection if any, otherwise paste from clipboard
+    const handleContextMenu = async (e: MouseEvent): Promise<void> => {
+      e.preventDefault()
+      const sel = terminal.getSelection()
+      if (sel) {
+        navigator.clipboard.writeText(sel)
+      } else {
+        try {
+          const text = await navigator.clipboard.readText()
+          if (text && sessionId) window.api.writeTerminal(sessionId, text)
+        } catch { /* clipboard permission denied */ }
       }
-    })
+    }
+    containerRef.current.addEventListener('contextmenu', handleContextMenu)
+
+    // Handle resize — re-fit whenever the container changes size
+    const resizeObserver = new ResizeObserver(doFit)
     resizeObserver.observe(containerRef.current)
 
     terminalRef.current = terminal
@@ -91,6 +141,7 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
     cleanupRef.current = () => {
       cleanup()
       resizeObserver.disconnect()
+      containerRef.current?.removeEventListener('contextmenu', handleContextMenu)
       terminal.dispose()
     }
   }, [sessionId, containerRef])
@@ -104,6 +155,9 @@ export function useTerminal({ sessionId, containerRef }: UseTerminalOptions) {
 
   return {
     terminal: terminalRef.current,
-    fit: () => fitAddonRef.current?.fit()
+    fit: () => fitAddonRef.current?.fit(),
+    copyAll,
+    copySelection,
+    copied
   }
 }
