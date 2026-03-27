@@ -330,7 +330,7 @@ export default function GitPage() {
               />
               <button
                 onClick={handleCommit}
-                disabled={!commitMsg.trim() || !!actionLoading}
+                disabled={!commitMsg.trim() || checkedFiles.size === 0 || !!actionLoading}
                 className="w-full h-11 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
               >
                 {actionLoading === 'commit' ? (
