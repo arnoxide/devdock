@@ -449,6 +449,7 @@ export interface AppConfig {
   productionMetrics: ProductionMetricsSettings
   github: GitHubSettings
   securityVault: SecurityVaultConfig
+  passwords: PasswordEntry[]
 }
 
 // ==========================================
@@ -483,6 +484,24 @@ export interface SecurityVaultConfig {
     symbols: boolean
     excludeSimilar: boolean
   }
+}
+
+// ==========================================
+// PASSWORD MANAGER
+// ==========================================
+
+export type PasswordCategory = 'login' | 'api-key' | 'ssh' | 'database' | 'other'
+
+export interface PasswordEntry {
+  id: string
+  title: string
+  category: PasswordCategory
+  username: string
+  password: string // stored encrypted
+  url: string
+  notes: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface GlobalSettings {

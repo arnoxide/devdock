@@ -35,7 +35,8 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
       symbols: true,
       excludeSimilar: false
     }
-  }
+  },
+  passwords: []
 }
 
 const store = new Store<AppConfig>({

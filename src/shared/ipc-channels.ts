@@ -161,6 +161,11 @@ export const IPC = {
   VAULT_ENCRYPT_VALUE: 'vault:encrypt-value',
   VAULT_DECRYPT_VALUE: 'vault:decrypt-value',
 
+  // Password Manager
+  PASSWORDS_GET: 'passwords:get',
+  PASSWORDS_SAVE: 'passwords:save',
+  PASSWORDS_DELETE: 'passwords:delete',
+
   // Local Tunnel / Link Sharing
   TUNNEL_START: 'tunnel:start',
   TUNNEL_STOP: 'tunnel:stop',

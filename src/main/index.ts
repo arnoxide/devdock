@@ -12,7 +12,7 @@ let isQuitting = false
 
 function createTray(): void {
   const iconPath = is.dev
-    ? join(__dirname, '../../resources/icon.png')
+    ? join(app.getAppPath(), 'resources/icon.png')
     : join(process.resourcesPath, 'icon.png')
   const icon = nativeImage.createFromPath(iconPath)
 
@@ -51,8 +51,10 @@ function createTray(): void {
 function createWindow(): void {
   const bounds = store.get('windowBounds', { x: 100, y: 100, width: 1400, height: 900 })
   const iconPath = is.dev
-    ? join(__dirname, '../../resources/icon.png')
+    ? join(app.getAppPath(), 'resources/icon.png')
     : join(process.resourcesPath, 'icon.png')
+
+  const icon = nativeImage.createFromPath(iconPath)
 
   const isMac = process.platform === 'darwin'
 
@@ -64,7 +66,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    icon: iconPath,
+    icon,
     backgroundColor: '#0f1117',
     titleBarStyle: 'hidden',
     ...(isMac
@@ -83,6 +85,10 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  if (process.platform === 'linux') {
+    mainWindow.setIcon(icon)
+  }
 
   mainWindow.on('ready-to-show', () => {
     const settings = store.get('globalSettings')

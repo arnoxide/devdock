@@ -1,6 +1,7 @@
 import { ipcMain, dialog } from 'electron'
+import crypto from 'crypto'
 import { IPC } from '../../shared/ipc-channels'
-import { ProjectEnvVault, SecurityVaultConfig, VaultEnvironment } from '../../shared/types'
+import { PasswordEntry, ProjectEnvVault, SecurityVaultConfig, VaultEnvironment } from '../../shared/types'
 import store from '../store'
 import { vaultService } from '../services/vault-service'
 
@@ -85,5 +86,36 @@ export function registerVaultHandlers(): void {
 
   ipcMain.handle(IPC.VAULT_DECRYPT_VALUE, async (_e, encrypted: string) => {
     return vaultService.decryptValue(encrypted)
+  })
+
+  // Password Manager
+  ipcMain.handle(IPC.PASSWORDS_GET, async () => {
+    return (store.get('passwords', []) as PasswordEntry[])
+  })
+
+  ipcMain.handle(IPC.PASSWORDS_SAVE, async (_e, entry: PasswordEntry) => {
+    const entries = store.get('passwords', []) as PasswordEntry[]
+    const encryptedEntry = {
+      ...entry,
+      password: entry.password ? vaultService.encryptValue(entry.password) : '',
+    }
+    const idx = entries.findIndex((e) => e.id === entry.id)
+    if (idx >= 0) {
+      entries[idx] = { ...encryptedEntry, updatedAt: new Date().toISOString() }
+    } else {
+      entries.push({
+        ...encryptedEntry,
+        id: entry.id || crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    }
+    store.set('passwords', entries)
+    return entries
+  })
+
+  ipcMain.handle(IPC.PASSWORDS_DELETE, async (_e, id: string) => {
+    const entries = store.get('passwords', []) as PasswordEntry[]
+    store.set('passwords', entries.filter((e) => e.id !== id))
   })
 }

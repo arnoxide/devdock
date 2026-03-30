@@ -18,6 +18,7 @@ linux:
     - AppImage
     - deb
     - snap
+  icon: resources/icons
   maintainer: devdock
   category: Development
   synopsis: "Manage local dev environments with ease"

@@ -165,6 +165,11 @@ const api = {
   vaultEncryptValue: (value: string) => ipcRenderer.invoke(IPC.VAULT_ENCRYPT_VALUE, value),
   vaultDecryptValue: (encrypted: string) => ipcRenderer.invoke(IPC.VAULT_DECRYPT_VALUE, encrypted),
 
+  // Password Manager
+  getPasswords: () => ipcRenderer.invoke(IPC.PASSWORDS_GET),
+  savePassword: (entry: unknown) => ipcRenderer.invoke(IPC.PASSWORDS_SAVE, entry),
+  deletePassword: (id: string) => ipcRenderer.invoke(IPC.PASSWORDS_DELETE, id),
+
   // Tunnel / Link Sharing
   startTunnel: (projectId: string, port: number) => ipcRenderer.invoke(IPC.TUNNEL_START, projectId, port),
   stopTunnel: (projectId: string) => ipcRenderer.invoke(IPC.TUNNEL_STOP, projectId),

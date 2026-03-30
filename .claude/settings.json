@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -i ~/Downloads/ssh-key-2026-03-24.key ubuntu@92.4.143.163 \"ls ~/devdock-server/\")",
+      "Bash(ssh -i ~/Downloads/ssh-key-2026-03-24.key ubuntu@92.4.143.163 \"cat ~/devdock-server/auth.js\")",
+      "Bash(ssh -i ~/Downloads/ssh-key-2026-03-24.key ubuntu@92.4.143.163 \"cat ~/devdock-server/store.js\")",
+      "Read(//home/arnold/.config/devdock/**)",
+      "Read(//home/arnold/.config/**)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

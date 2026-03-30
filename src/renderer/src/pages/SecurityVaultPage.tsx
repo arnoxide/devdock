@@ -7,7 +7,8 @@ import {
   Hash,
   Fingerprint,
   Binary,
-  Key
+  Key,
+  Vault
 } from 'lucide-react'
 import PasswordGenerator from '../components/vault/PasswordGenerator'
 import JWTTool from '../components/vault/JWTTool'
@@ -16,9 +17,11 @@ import HashGenerator from '../components/vault/HashGenerator'
 import UUIDGenerator from '../components/vault/UUIDGenerator'
 import Base64Tool from '../components/vault/Base64Tool'
 import SecretKeyGenerator from '../components/vault/SecretKeyGenerator'
+import PasswordManager from '../components/vault/PasswordManager'
 
 const tabs = [
-  { id: 'password', label: 'Password', icon: KeyRound },
+  { id: 'manager', label: 'Passwords', icon: Vault },
+  { id: 'password', label: 'Generator', icon: KeyRound },
   { id: 'jwt', label: 'JWT', icon: FileKey2 },
   { id: 'env', label: 'Env Vault', icon: Lock },
   { id: 'hash', label: 'Hash', icon: Hash },
@@ -30,7 +33,7 @@ const tabs = [
 type TabId = (typeof tabs)[number]['id']
 
 export default function SecurityVaultPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('password')
+  const [activeTab, setActiveTab] = useState<TabId>('manager')
 
   return (
     <div className="h-full flex flex-col">
@@ -66,7 +69,8 @@ export default function SecurityVaultPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="max-w-2xl">
-          {activeTab === 'password' && <PasswordGenerator />}
+          {activeTab === 'manager' && <PasswordManager />}
+        {activeTab === 'password' && <PasswordGenerator />}
           {activeTab === 'jwt' && <JWTTool />}
           {activeTab === 'env' && <EnvVault />}
           {activeTab === 'hash' && <HashGenerator />}
