@@ -148,19 +148,50 @@ export default function GitControl({ projectId }: GitControlProps) {
 
     const totalChanges = status.staged.length + status.unstaged.length + status.untracked.length
     const hasChangesToCommit = totalChanges > 0
+    const isBehind = status.behind > 0
+    const isAhead = status.ahead > 0
 
     const syncStatus = !status.hasRemote
         ? 'Local repository (no remote tracking)'
-        : status.ahead > 0 && status.behind > 0
+        : isAhead && isBehind
             ? 'Your branch has diverged from remote'
-            : status.ahead > 0
+            : isAhead
                 ? `${status.ahead} commit${status.ahead > 1 ? 's' : ''} ready to push`
-                : status.behind > 0
+                : isBehind
                     ? `${status.behind} commit${status.behind > 1 ? 's' : ''} to pull from remote`
                     : 'Up to date with remote'
 
     return (
         <div className="space-y-5">
+
+            {/* ── Incoming changes warning ── */}
+            {isBehind && (
+                <div className="flex items-start gap-3 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                    <AlertCircle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-400">
+                            {status.behind} incoming commit{status.behind > 1 ? 's' : ''} — pull first
+                        </p>
+                        <p className="text-xs text-amber-400/70 mt-0.5">
+                            Committing or pushing now may cause conflicts. Pull the latest changes before continuing.
+                        </p>
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => pull(projectId)} disabled={isLoading}>
+                        <ArrowDown size={13} /> Pull now
+                    </Button>
+                </div>
+            )}
+
+            {/* ── Uncommitted changes blocking push ── */}
+            {!isBehind && hasChangesToCommit && isAhead && (
+                <div className="flex items-start gap-3 p-3.5 bg-dock-accent/10 border border-dock-accent/30 rounded-xl">
+                    <AlertCircle size={16} className="text-dock-accent mt-0.5 shrink-0" />
+                    <p className="text-xs text-dock-accent/80">
+                        You have uncommitted changes. Commit them before pushing.
+                    </p>
+                </div>
+            )}
+
             {/* Branch & Sync Header */}
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-dock-surface border border-dock-border rounded-xl">
                 <div className="flex items-center gap-3">
@@ -193,13 +224,18 @@ export default function GitControl({ projectId }: GitControlProps) {
                     </div>
                     <div className="h-8 w-px bg-dock-border" />
                     <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => loadStatus(projectId)} disabled={isLoading} title="Refresh status">
-                            <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
+                        <Button variant="secondary" size="sm" onClick={() => loadStatus(projectId)} disabled={isLoading} title="Refresh status">
+                            <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
                         </Button>
                         <Button variant="secondary" size="sm" onClick={() => pull(projectId)} disabled={isLoading || !status.hasRemote} title="Pull changes from remote">
                             <ArrowDown size={14} /> Pull
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => push(projectId)} disabled={isLoading || !status.hasRemote} title="Push changes to remote">
+                        <Button
+                            variant="secondary" size="sm"
+                            onClick={() => push(projectId)}
+                            disabled={isLoading || !status.hasRemote || isBehind || hasChangesToCommit}
+                            title={isBehind ? 'Pull first before pushing' : hasChangesToCommit ? 'Commit your changes first' : 'Push to remote'}
+                        >
                             <ArrowUp size={14} /> Push
                         </Button>
                         <Button variant="secondary" size="sm" onClick={() => sync(projectId)} disabled={isLoading || !status.hasRemote} title="Sync with remote (Pull then Push)">
@@ -306,7 +342,8 @@ export default function GitControl({ projectId }: GitControlProps) {
                                     </p>
                                     <Button
                                         onClick={handleCommit}
-                                        disabled={!commitMessage.trim() || isCommitting || !hasChangesToCommit}
+                                        disabled={!commitMessage.trim() || isCommitting || !hasChangesToCommit || isBehind}
+                                        title={isBehind ? 'Pull incoming changes first' : undefined}
                                     >
                                         {isCommitting
                                             ? <RefreshCw size={14} className="animate-spin" />

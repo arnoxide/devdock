@@ -19,6 +19,7 @@
     "src/preload/**/*.ts",
     "src/preload/**/*.d.ts",
     "src/shared/**/*.ts",
+    "src/remote/**/*.ts",
     "electron.vite.config.ts"
   ]
 }

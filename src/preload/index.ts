@@ -165,6 +165,10 @@ const api = {
   vaultEncryptValue: (value: string) => ipcRenderer.invoke(IPC.VAULT_ENCRYPT_VALUE, value),
   vaultDecryptValue: (encrypted: string) => ipcRenderer.invoke(IPC.VAULT_DECRYPT_VALUE, encrypted),
 
+  // File Explorer
+  listFiles: (dirPath: string) => ipcRenderer.invoke(IPC.FILES_LIST, dirPath),
+  openFile: (filePath: string) => ipcRenderer.invoke(IPC.FILES_OPEN, filePath),
+
   // Password Manager
   getPasswords: () => ipcRenderer.invoke(IPC.PASSWORDS_GET),
   savePassword: (entry: unknown) => ipcRenderer.invoke(IPC.PASSWORDS_SAVE, entry),

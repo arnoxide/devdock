@@ -161,6 +161,10 @@ export const IPC = {
   VAULT_ENCRYPT_VALUE: 'vault:encrypt-value',
   VAULT_DECRYPT_VALUE: 'vault:decrypt-value',
 
+  // File Explorer
+  FILES_LIST: 'files:list',
+  FILES_OPEN: 'files:open',
+
   // Password Manager
   PASSWORDS_GET: 'passwords:get',
   PASSWORDS_SAVE: 'passwords:save',

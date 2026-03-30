@@ -19,7 +19,8 @@ import {
   Copy,
   Check,
   Link,
-  Loader2
+  Loader2,
+  FolderOpen
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useProcessStore } from '../stores/process-store'
@@ -28,6 +29,7 @@ import ProjectTypeBadge from '../components/project/ProjectTypeBadge'
 import ProcessOutput from '../components/terminal/ProcessOutput'
 import TerminalView from '../components/terminal/TerminalView'
 import GitControl from '../components/project/GitControl'
+import FileExplorer from '../components/project/FileExplorer'
 import Button from '../components/ui/Button'
 import Tabs from '../components/ui/Tabs'
 import Card, { CardBody, CardHeader } from '../components/ui/Card'
@@ -248,6 +250,7 @@ export default function ProjectDetailPage() {
   const tabs = useMemo(() => [
     { id: 'output', label: 'Output', icon: <ScrollText size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+    { id: 'files', label: 'Files', icon: <FolderOpen size={14} /> },
     { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
     { id: 'actions', label: 'Quick Actions', icon: <Zap size={14} /> }
   ], [])
@@ -567,6 +570,12 @@ export default function ProjectDetailPage() {
         {activeTab === 'terminal' && (
           <div className="flex-1 overflow-hidden flex flex-col">
             <TerminalView projectId={project.id} />
+          </div>
+        )}
+
+        {activeTab === 'files' && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <FileExplorer projectPath={project.path} />
           </div>
         )}
 

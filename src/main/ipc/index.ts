@@ -13,6 +13,7 @@ import { registerGitHubHandlers } from './github-handlers'
 import { registerGitHandlers } from './git-handlers'
 import { registerVaultHandlers } from './vault-handlers'
 import { registerTunnelHandlers } from './tunnel-handlers'
+import { registerFilesHandlers } from './files-handlers'
 
 function safeRegister(name: string, register: () => void): void {
   try {
@@ -38,4 +39,5 @@ export function registerAllHandlers(): void {
   safeRegister('git', registerGitHandlers)
   safeRegister('vault', registerVaultHandlers)
   safeRegister('tunnel', registerTunnelHandlers)
+  safeRegister('files', registerFilesHandlers)
 }
