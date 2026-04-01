@@ -165,6 +165,18 @@ const api = {
   vaultEncryptValue: (value: string) => ipcRenderer.invoke(IPC.VAULT_ENCRYPT_VALUE, value),
   vaultDecryptValue: (encrypted: string) => ipcRenderer.invoke(IPC.VAULT_DECRYPT_VALUE, encrypted),
 
+  // Auto Updater
+  checkForUpdates: () => ipcRenderer.invoke(IPC.UPDATE_CHECK),
+  installUpdate: () => ipcRenderer.invoke(IPC.UPDATE_INSTALL),
+  onUpdateAvailable: createListener(IPC.UPDATE_AVAILABLE),
+  onUpdateDownloaded: createListener(IPC.UPDATE_DOWNLOADED),
+  onUpdateProgress: createListener(IPC.UPDATE_PROGRESS),
+  onUpdateError: createListener(IPC.UPDATE_ERROR),
+
+  // Remote Server Credentials
+  getRemoteStatus: () => ipcRenderer.invoke(IPC.REMOTE_GET_STATUS),
+  setRemoteCredentials: (username: string, password: string) => ipcRenderer.invoke(IPC.REMOTE_SET_CREDENTIALS, username, password),
+
   // File Explorer
   listFiles: (dirPath: string) => ipcRenderer.invoke(IPC.FILES_LIST, dirPath),
   openFile: (filePath: string) => ipcRenderer.invoke(IPC.FILES_OPEN, filePath),

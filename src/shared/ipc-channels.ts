@@ -161,6 +161,19 @@ export const IPC = {
   VAULT_ENCRYPT_VALUE: 'vault:encrypt-value',
   VAULT_DECRYPT_VALUE: 'vault:decrypt-value',
 
+  // Auto Updater
+  UPDATE_CHECK: 'update:check',
+  UPDATE_INSTALL: 'update:install',
+  UPDATE_AVAILABLE: 'update:available',
+  UPDATE_DOWNLOADED: 'update:downloaded',
+  UPDATE_PROGRESS: 'update:progress',
+  UPDATE_ERROR: 'update:error',
+  UPDATE_NOT_AVAILABLE: 'update:not-available',
+
+  // Remote Server Credentials
+  REMOTE_SET_CREDENTIALS: 'remote:set-credentials',
+  REMOTE_GET_STATUS: 'remote:get-status',
+
   // File Explorer
   FILES_LIST: 'files:list',
   FILES_OPEN: 'files:open',

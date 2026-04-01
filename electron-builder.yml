@@ -1,4 +1,8 @@
 appId: com.devdock.app
+publish:
+  provider: github
+  owner: arnoxide
+  repo: devdock
 productName: DevDock
 executableName: devdock
 icon: resources/icon.png

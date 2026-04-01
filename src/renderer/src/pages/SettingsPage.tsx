@@ -408,7 +408,7 @@ export default function SettingsPage() {
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 Latest Version Installed
               </p>
-              <p>Built by theboxco | <span className="text-dock-accent font-medium">Arnold J.</span></p>
+              <p>Built by theboxco | <span className="text-dock-accent font-medium">Arnold Masutha.</span></p>
               <div className="flex gap-4 mt-2">
                 <a href="#" className="hover:text-dock-accent transition-colors">Changelog</a>
                 <a href="#" className="hover:text-dock-accent transition-colors">Documentation</a>

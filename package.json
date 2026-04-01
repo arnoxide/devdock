@@ -32,6 +32,7 @@
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.3",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "localtunnel": "^2.0.2",

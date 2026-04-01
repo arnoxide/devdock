@@ -11,7 +11,13 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
     systemMonitorIntervalMs: 3000,
     logRetentionCount: 5000,
     startMinimized: false,
-    closeToTray: false
+    closeToTray: false,
+    profile: {
+      displayName: '',
+      username: '',
+      email: '',
+      bio: ''
+    }
   },
   envTemplates: [],
   windowBounds: { x: 100, y: 100, width: 1400, height: 900 },

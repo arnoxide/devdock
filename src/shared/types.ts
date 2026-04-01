@@ -504,6 +504,13 @@ export interface PasswordEntry {
   updatedAt: string
 }
 
+export interface UserProfile {
+  displayName: string
+  username: string
+  email: string
+  bio: string
+}
+
 export interface GlobalSettings {
   theme: 'dark' | 'light'
   defaultShell: string
@@ -512,6 +519,7 @@ export interface GlobalSettings {
   logRetentionCount: number
   startMinimized: boolean
   closeToTray: boolean
+  profile: UserProfile
 }
 // ==========================================
 // GIT INTEGRATION

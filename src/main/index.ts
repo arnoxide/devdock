@@ -5,6 +5,7 @@ import store from './store'
 import { registerAllHandlers } from './ipc'
 import { stopAllTunnels } from './services/tunnel-service'
 import { startRemoteServer, stopRemoteServer } from '../remote/server'
+import { initAutoUpdater } from './services/updater-service'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -156,6 +157,7 @@ app.whenReady().then(() => {
 
   registerAllHandlers()
   createWindow()
+  if (mainWindow) initAutoUpdater(mainWindow)
   startRemoteServer().catch((err) => console.error('[DevDock Remote] Failed to start:', err))
 
   try {
