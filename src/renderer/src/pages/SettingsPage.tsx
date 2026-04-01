@@ -204,6 +204,25 @@ export default function SettingsPage() {
                     />
                   </button>
                 </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg hover:bg-dock-bg/50 transition-colors">
+                  <div>
+                    <p className="text-sm font-medium text-dock-text">Launch at Startup</p>
+                    <p className="text-xs text-dock-muted">
+                      Start DevDock automatically when you log in
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => updateSettings({ launchAtStartup: !settings.launchAtStartup })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ring-offset-dock-surface focus:ring-2 focus:ring-dock-accent focus:ring-offset-2 ${settings.launchAtStartup ? 'bg-dock-accent' : 'bg-dock-card border border-dock-border'
+                      }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.launchAtStartup ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                    />
+                  </button>
+                </div>
               </div>
             </CardBody>
           </Card>

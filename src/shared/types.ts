@@ -519,6 +519,7 @@ export interface GlobalSettings {
   logRetentionCount: number
   startMinimized: boolean
   closeToTray: boolean
+  launchAtStartup: boolean
   profile: UserProfile
 }
 // ==========================================
