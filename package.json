@@ -1,6 +1,6 @@
 {
   "name": "devdock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop Development Environment Manager",
   "main": "./out/main/index.js",
   "author": "DevDock",
