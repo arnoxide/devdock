@@ -7,24 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-            args: --linux
-          - os: windows-latest
-            platform: win
-            args: --win
-          - os: macos-latest
-            platform: mac
-            args: --mac
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
@@ -43,6 +28,6 @@ jobs:
         run: npm run build
 
       - name: Package & Publish
-        run: npx electron-builder ${{ matrix.args }} --publish always
+        run: npx electron-builder --linux --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
