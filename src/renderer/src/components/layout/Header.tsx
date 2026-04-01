@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, User, ArrowUpCircle, Search, Download, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import CommandPalette from './CommandPalette'
 
 interface UpdateInfo {
   version: string
@@ -11,6 +12,18 @@ export default function Header() {
   const [updateAvailable, setUpdateAvailable] = useState<UpdateInfo | null>(null)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   useEffect(() => {
     const offAvailable = window.api.onUpdateAvailable((info: unknown) => {
@@ -33,15 +46,16 @@ export default function Header() {
   }, [])
 
   return (
+    <>
     <header className="h-14 border-b border-dock-border bg-dock-surface/50 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-6 pr-36">
-      <div className="flex-1 max-w-md relative group hidden md:block">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-dock-muted group-focus-within:text-dock-accent transition-colors" />
-        <input
-          type="text"
-          placeholder="Quick search (Ctrl+K)"
-          className="w-full bg-dock-bg/50 border border-dock-border rounded-lg pl-10 pr-4 py-1.5 text-sm text-dock-text placeholder:text-dock-muted focus:outline-none focus:ring-1 focus:ring-dock-accent focus:border-dock-accent transition-all"
-        />
-      </div>
+      <button
+        onClick={() => setPaletteOpen(true)}
+        className="flex-1 max-w-md relative group hidden md:flex items-center gap-2 bg-dock-bg/50 border border-dock-border rounded-lg pl-3 pr-4 py-1.5 text-sm text-dock-muted hover:border-dock-accent hover:text-dock-text transition-all text-left"
+      >
+        <Search size={16} className="shrink-0" />
+        <span className="flex-1">Quick search...</span>
+        <kbd className="text-[10px] border border-dock-border rounded px-1.5 py-0.5 ml-auto">Ctrl+K</kbd>
+      </button>
 
       <div className="flex-1 md:hidden" />
 
@@ -90,5 +104,8 @@ export default function Header() {
         </Link>
       </div>
     </header>
+
+    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </>
   )
 }

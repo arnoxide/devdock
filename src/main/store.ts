@@ -12,6 +12,7 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
     logRetentionCount: 5000,
     startMinimized: false,
     closeToTray: false,
+    launchAtStartup: false,
     profile: {
       displayName: '',
       username: '',
