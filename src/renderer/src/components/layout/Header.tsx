@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Bell, User, ArrowUpCircle, Search, Download, RefreshCw } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Bell, User, ArrowUpCircle, Search, Download, RefreshCw, ChevronLeft } from 'lucide-react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import CommandPalette from './CommandPalette'
 
 interface UpdateInfo {
@@ -9,6 +9,10 @@ interface UpdateInfo {
 }
 
 export default function Header() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const canGoBack = location && (window.history.state?.idx ?? 0) > 0
+
   const [updateAvailable, setUpdateAvailable] = useState<UpdateInfo | null>(null)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null)
@@ -48,6 +52,17 @@ export default function Header() {
   return (
     <>
     <header className="h-14 border-b border-dock-border bg-dock-surface/50 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-6 pr-36">
+      <div className="flex items-center gap-2 mr-3">
+        <button
+          onClick={() => navigate(-1)}
+          disabled={!canGoBack}
+          className="p-1.5 rounded-lg text-dock-muted hover:text-dock-text hover:bg-dock-card transition-all disabled:opacity-25 disabled:cursor-default"
+          title="Go back"
+        >
+          <ChevronLeft size={18} />
+        </button>
+      </div>
+
       <button
         onClick={() => setPaletteOpen(true)}
         className="flex-1 max-w-md relative group hidden md:flex items-center gap-2 bg-dock-bg/50 border border-dock-border rounded-lg pl-3 pr-4 py-1.5 text-sm text-dock-muted hover:border-dock-accent hover:text-dock-text transition-all text-left"

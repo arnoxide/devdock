@@ -324,8 +324,8 @@ export default function GitControl({ projectId }: GitControlProps) {
                                 )}
                             </div>
 
-                            {/* Commit Input */}
-                            <div className="pt-4 border-t border-dock-border">
+                            {/* Commit Input — sticky so it's always visible */}
+                            <div className="sticky bottom-0 pt-4 border-t border-dock-border bg-dock-surface -mx-4 px-4 pb-1 shadow-[0_-8px_16px_-4px_rgba(0,0,0,0.3)]">
                                 <textarea
                                     placeholder="Describe your changes..."
                                     value={commitMessage}

@@ -580,7 +580,9 @@ export default function ProjectDetailPage() {
         )}
 
         {activeTab === 'git' && (
-          <GitControl projectId={project.id} />
+          <div className="flex-1 overflow-y-auto py-1">
+            <GitControl projectId={project.id} />
+          </div>
         )}
 
         {activeTab === 'actions' && (
