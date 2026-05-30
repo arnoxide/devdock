@@ -14,9 +14,11 @@ import {
     FilePlus,
     FileX,
     FileDiff,
-    RotateCcw
+    RotateCcw,
+    Github
 } from 'lucide-react'
 import { useGitStore } from '../../stores/git-store'
+import { useGitHubStore } from '../../stores/github-store'
 import { GitFileStatus } from '../../../../shared/types'
 import Button from '../ui/Button'
 import Card, { CardBody } from '../ui/Card'
@@ -72,10 +74,14 @@ export default function GitControl({ projectId }: GitControlProps) {
     const init = useGitStore((s) => s.init)
     const setRemote = useGitStore((s) => s.setRemote)
     const getRemote = useGitStore((s) => s.getRemote)
+    const githubCredentials = useGitHubStore((s) => s.credentials)
+    const githubAccounts = useGitHubStore((s) => s.accounts)
+    const switchGitHubAccount = useGitHubStore((s) => s.switchAccount)
 
     const [commitMessage, setCommitMessage] = useState('')
     const [isCommitting, setIsCommitting] = useState(false)
     const [isSettingRemote, setIsSettingRemote] = useState(false)
+    const [isSwitchingAccount, setIsSwitchingAccount] = useState(false)
     const [remoteUrl, setRemoteUrl] = useState('')
     const [showRemoteDialog, setShowRemoteDialog] = useState(false)
 
@@ -108,6 +114,16 @@ export default function GitControl({ projectId }: GitControlProps) {
             setShowRemoteDialog(false)
         } finally {
             setIsSettingRemote(false)
+        }
+    }
+
+    const handleSwitchGitHubAccount = async (username: string) => {
+        if (!username || username === githubCredentials?.username) return
+        setIsSwitchingAccount(true)
+        try {
+            await switchGitHubAccount(username)
+        } finally {
+            setIsSwitchingAccount(false)
         }
     }
 
@@ -358,6 +374,34 @@ export default function GitControl({ projectId }: GitControlProps) {
 
                 {/* Sidebar */}
                 <div className="space-y-5">
+                    {githubAccounts.length > 0 && (
+                        <Card>
+                            <div className="p-4 border-b border-dock-border">
+                                <h3 className="text-sm font-bold text-dock-text flex items-center gap-2">
+                                    <Github size={14} className="text-dock-accent" />
+                                    GitHub Account
+                                </h3>
+                            </div>
+                            <CardBody className="space-y-3">
+                                <select
+                                    value={githubCredentials?.username || ''}
+                                    onChange={(e) => handleSwitchGitHubAccount(e.target.value)}
+                                    disabled={isSwitchingAccount}
+                                    className="w-full px-3 py-2 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-2 focus:ring-dock-accent/40"
+                                >
+                                    {githubAccounts.map((account) => (
+                                        <option key={account.username} value={account.username}>
+                                            {account.username}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-dock-muted leading-relaxed">
+                                    Active for DevDock GitHub data. Git push and pull still use this repo's configured remote and your local Git credentials.
+                                </p>
+                            </CardBody>
+                        </Card>
+                    )}
+
                     {/* Latest Commit */}
                     <Card>
                         <div className="p-4 border-b border-dock-border">

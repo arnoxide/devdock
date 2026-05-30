@@ -31,12 +31,20 @@ export function registerGitHubHandlers(): void {
     return githubService.setToken(token)
   })
 
-  ipcMain.handle(IPC.GITHUB_REMOVE_TOKEN, async () => {
-    githubService.removeToken()
+  ipcMain.handle(IPC.GITHUB_REMOVE_TOKEN, async (_event, username?: string) => {
+    githubService.removeToken(username)
   })
 
   ipcMain.handle(IPC.GITHUB_GET_CREDENTIALS, async () => {
     return githubService.getCredentials()
+  })
+
+  ipcMain.handle(IPC.GITHUB_GET_ACCOUNTS, async () => {
+    return githubService.getAccounts()
+  })
+
+  ipcMain.handle(IPC.GITHUB_SWITCH_ACCOUNT, async (_event, username: string) => {
+    return githubService.switchAccount(username)
   })
 
   ipcMain.handle(IPC.GITHUB_TEST_CONNECTION, async (_event, token?: string) => {

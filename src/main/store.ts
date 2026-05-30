@@ -29,6 +29,8 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
   },
   github: {
     credentials: null,
+    accounts: [],
+    activeUsername: null,
     pollingIntervalMs: 60000,
     enabled: false
   },

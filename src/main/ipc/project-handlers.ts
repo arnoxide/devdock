@@ -1,10 +1,145 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { v4 as uuid } from 'uuid'
 import path from 'node:path'
+import fs from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import { IPC } from '../../shared/ipc-channels'
-import { ProjectConfig } from '../../shared/types'
+import { CloneProjectRequest, ProjectConfig } from '../../shared/types'
+import { githubService } from '../services/github-service'
 import { projectDetector } from '../services/project-detector'
 import store from '../store'
+
+const CLONE_TIMEOUT_MS = 10 * 60 * 1000
+const CLONE_IDLE_TIMEOUT_MS = 60 * 1000
+
+function inferCloneDirectoryName(repoUrl: string): string {
+  const withoutQuery = repoUrl.trim().split('?')[0].replace(/\/$/, '')
+  const lastSegment = withoutQuery.split(/[/:]/).filter(Boolean).pop() || 'repository'
+  return lastSegment.replace(/\.git$/, '').replace(/[^a-zA-Z0-9._-]/g, '-')
+}
+
+function isSupportedGitUrl(repoUrl: string): boolean {
+  return /^(https:\/\/|ssh:\/\/|git@)/.test(repoUrl.trim()) && !/[\r\n]/.test(repoUrl)
+}
+
+function isGitHubHttpsUrl(repoUrl: string): boolean {
+  return /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?$/i.test(repoUrl.trim())
+}
+
+function normalizeGitHubCloneUrl(repoUrl: string): string {
+  return repoUrl.trim().replace(/\/$/, '').replace(/\.git$/, '') + '.git'
+}
+
+function runGitClone(
+  repoUrl: string,
+  targetPath: string,
+  parentPath: string,
+  token?: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const normalizedUrl = token ? normalizeGitHubCloneUrl(repoUrl) : repoUrl
+    const env = {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: '0',
+      GCM_INTERACTIVE: 'never',
+      GIT_ASKPASS: 'echo',
+      SSH_ASKPASS: 'echo',
+      ...(token
+        ? {
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+            GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`
+          }
+        : {})
+    }
+
+    const child = spawn('git', ['clone', '--progress', normalizedUrl, targetPath], {
+      cwd: parentPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env
+    })
+
+    let output = ''
+    let settled = false
+    let idleTimer: NodeJS.Timeout | null = null
+    const timeout = setTimeout(() => {
+      finish(new Error('Clone timed out after 10 minutes. Check your network connection or try cloning from a terminal.'))
+      child.kill('SIGTERM')
+    }, CLONE_TIMEOUT_MS)
+
+    const resetIdleTimer = (): void => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => {
+        finish(new Error('Clone stopped making progress. Git may be waiting for credentials; check that the active GitHub account has access to this repo.'))
+        child.kill('SIGTERM')
+      }, CLONE_IDLE_TIMEOUT_MS)
+    }
+
+    const finish = (err?: Error): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      if (idleTimer) clearTimeout(idleTimer)
+      if (err) reject(err)
+      else resolve()
+    }
+
+    resetIdleTimer()
+    child.stdout.on('data', (chunk) => {
+      output += chunk.toString()
+      resetIdleTimer()
+    })
+    child.stderr.on('data', (chunk) => {
+      output += chunk.toString()
+      resetIdleTimer()
+    })
+    child.on('error', (err) => {
+      finish(new Error(`Could not start git clone: ${err.message}`))
+    })
+    child.on('close', (code) => {
+      if (code === 0) {
+        finish()
+        return
+      }
+      const redactedOutput = token ? output.replaceAll(token, '[redacted]') : output
+      finish(new Error(redactedOutput.trim() || `git clone exited with code ${code}`))
+    })
+  })
+}
+
+async function addSingleProject(projectPath: string): Promise<ProjectConfig> {
+  const projects = store.get('projects', [])
+  if (projects.some((p: ProjectConfig) => p.path === projectPath)) {
+    throw new Error('Project already exists')
+  }
+
+  const detection = await projectDetector.detect(projectPath)
+  if (detection.type === 'unknown' && !detection.startCommand) {
+    throw new Error('The repository cloned, but DevDock could not detect a runnable project in the repo root.')
+  }
+
+  const project: ProjectConfig = {
+    id: uuid(),
+    name: path.basename(projectPath),
+    path: projectPath,
+    type: detection.type,
+    detectedScripts: detection.scripts,
+    startCommand: detection.startCommand,
+    packageManager: detection.packageManager,
+    customCommands: [],
+    envFiles: detection.envFiles,
+    apiEndpoints: [],
+    dbConnections: [],
+    color: '#3b82f6',
+    createdAt: new Date().toISOString(),
+    lastOpenedAt: new Date().toISOString(),
+    openCount: 0
+  }
+
+  projects.push(project)
+  store.set('projects', projects)
+  return project
+}
 
 export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.PROJECT_BROWSE, async () => {
@@ -26,7 +161,6 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle(IPC.PROJECT_ADD, async (_event, projectPath: string) => {
     const projects = store.get('projects', [])
-    const fs = await import('fs/promises')
 
     console.log('[PROJECT_ADD] Adding project:', projectPath)
 
@@ -190,6 +324,40 @@ export function registerProjectHandlers(): void {
       console.error('[PROJECT_ADD] Error:', error)
       throw error
     }
+  })
+
+  ipcMain.handle(IPC.PROJECT_CLONE, async (_event, request: CloneProjectRequest) => {
+    const repoUrl = request.repoUrl.trim()
+    if (!isSupportedGitUrl(repoUrl)) {
+      throw new Error('Use an HTTPS, SSH, or git@ Git URL.')
+    }
+
+    const parentPath = path.resolve(request.parentPath)
+    const directoryName = (request.directoryName?.trim() || inferCloneDirectoryName(repoUrl))
+      .replace(/[/\\]/g, '-')
+      .replace(/^\.+$/, '')
+
+    if (!directoryName) throw new Error('Enter a folder name for the clone.')
+
+    const targetPath = path.join(parentPath, directoryName)
+    const parentStat = await fs.stat(parentPath).catch(() => null)
+    if (!parentStat?.isDirectory()) throw new Error('Choose a valid destination folder.')
+
+    try {
+      await fs.access(targetPath)
+      throw new Error(`A folder named "${directoryName}" already exists in that location.`)
+    } catch (err: any) {
+      if (err?.code !== 'ENOENT') throw err
+    }
+
+    const githubToken = isGitHubHttpsUrl(repoUrl) ? githubService.getCredentials()?.token : undefined
+    try {
+      await runGitClone(repoUrl, targetPath, parentPath, githubToken)
+    } catch (err) {
+      await fs.rm(targetPath, { recursive: true, force: true }).catch(() => undefined)
+      throw err
+    }
+    return addSingleProject(targetPath)
   })
 
   ipcMain.handle(IPC.PROJECT_REMOVE, async (_event, id: string) => {

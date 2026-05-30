@@ -39,6 +39,12 @@ export interface ProjectConfig {
   isGroup?: boolean // True if this is a folder group (not a runnable project)
 }
 
+export interface CloneProjectRequest {
+  repoUrl: string
+  parentPath: string
+  directoryName?: string
+}
+
 export interface ProjectRuntime {
   projectId: string
   status: ProjectStatus
@@ -369,6 +375,8 @@ export interface GitHubRepo {
   fullName: string
   description: string | null
   htmlUrl: string
+  cloneUrl?: string
+  sshUrl?: string
   language: string | null
   stargazersCount: number
   forksCount: number
@@ -432,6 +440,8 @@ export interface GitHubNotification {
 
 export interface GitHubSettings {
   credentials: GitHubCredentials | null
+  accounts: GitHubCredentials[]
+  activeUsername: string | null
   pollingIntervalMs: number
   enabled: boolean
 }

@@ -26,11 +26,26 @@ export class GitHubService extends EventEmitter {
   // --- Settings ---
 
   private getSettings(): GitHubSettings {
-    return store.get('github', {
+    const settings = store.get('github', {
       credentials: null,
+      accounts: [],
+      activeUsername: null,
       pollingIntervalMs: 60000,
       enabled: false
     })
+
+    if (!settings.accounts) settings.accounts = []
+    if (settings.credentials && !settings.accounts.some((a) => a.username === settings.credentials?.username)) {
+      settings.accounts = [settings.credentials, ...settings.accounts]
+    }
+    if (!settings.credentials && settings.activeUsername) {
+      settings.credentials = settings.accounts.find((a) => a.username === settings.activeUsername) || null
+    }
+    if (settings.credentials && settings.activeUsername !== settings.credentials.username) {
+      settings.activeUsername = settings.credentials.username
+    }
+    settings.enabled = Boolean(settings.credentials?.enabled)
+    return settings
   }
 
   private saveSettings(settings: GitHubSettings): void {
@@ -39,6 +54,10 @@ export class GitHubService extends EventEmitter {
 
   getCredentials(): GitHubCredentials | null {
     return this.getSettings().credentials
+  }
+
+  getAccounts(): GitHubCredentials[] {
+    return this.getSettings().accounts
   }
 
   async setToken(token: string): Promise<GitHubCredentials> {
@@ -50,23 +69,54 @@ export class GitHubService extends EventEmitter {
       enabled: true
     }
     const settings = this.getSettings()
+    const idx = settings.accounts.findIndex((account) => account.username === creds.username)
+    if (idx >= 0) {
+      settings.accounts[idx] = creds
+    } else {
+      settings.accounts.push(creds)
+    }
     settings.credentials = creds
+    settings.activeUsername = creds.username
     settings.enabled = true
     this.saveSettings(settings)
+    this.clearCachedData()
+    this.stopPolling()
+    this.startPolling()
     return creds
   }
 
-  removeToken(): void {
+  switchAccount(username: string): GitHubCredentials {
     const settings = this.getSettings()
-    settings.credentials = null
-    settings.enabled = false
+    const creds = settings.accounts.find((account) => account.username === username)
+    if (!creds) throw new Error(`GitHub account "${username}" not found`)
+
+    settings.credentials = { ...creds, enabled: true }
+    settings.activeUsername = creds.username
+    settings.enabled = true
     this.saveSettings(settings)
-    this.repos = []
-    this.prs = []
-    this.issues = []
-    this.actions = []
-    this.notifications = []
+    this.clearCachedData()
     this.stopPolling()
+    this.startPolling()
+    return settings.credentials
+  }
+
+  removeToken(username?: string): void {
+    const settings = this.getSettings()
+    const accountToRemove = username || settings.credentials?.username
+    if (accountToRemove) {
+      settings.accounts = settings.accounts.filter((account) => account.username !== accountToRemove)
+    } else {
+      settings.accounts = []
+    }
+
+    const nextAccount = settings.accounts[0] || null
+    settings.credentials = nextAccount
+    settings.activeUsername = nextAccount?.username || null
+    settings.enabled = Boolean(nextAccount)
+    this.saveSettings(settings)
+    this.clearCachedData()
+    this.stopPolling()
+    if (nextAccount) this.startPolling()
   }
 
   async testConnection(token?: string): Promise<{ ok: boolean; username?: string; error?: string }> {
@@ -122,6 +172,19 @@ export class GitHubService extends EventEmitter {
       this.fastPollInterval = null
       this.fastPollCount = 0
     }
+  }
+
+  private clearCachedData(): void {
+    this.repos = []
+    this.prs = []
+    this.issues = []
+    this.actions = []
+    this.notifications = []
+    this.emit('repos-update', this.repos)
+    this.emit('prs-update', this.prs)
+    this.emit('issues-update', this.issues)
+    this.emit('actions-update', this.actions)
+    this.emit('notifications-update', this.notifications)
   }
 
   async refreshNow(): Promise<void> {
@@ -200,6 +263,8 @@ export class GitHubService extends EventEmitter {
         fullName: r.full_name,
         description: r.description,
         htmlUrl: r.html_url,
+        cloneUrl: r.clone_url,
+        sshUrl: r.ssh_url,
         language: r.language,
         stargazersCount: r.stargazers_count,
         forksCount: r.forks_count,

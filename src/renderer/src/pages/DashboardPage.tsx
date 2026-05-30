@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderKanban,
@@ -14,7 +14,10 @@ import {
   GitBranch,
   ExternalLink,
   TrendingUp,
-  History
+  History,
+  Github,
+  Cpu,
+  MemoryStick
 } from 'lucide-react'
 import { useProjectStore } from '../stores/project-store'
 import { useSystemStore } from '../stores/system-store'
@@ -22,6 +25,7 @@ import { useLogStore } from '../stores/log-store'
 import { useGitHubStore } from '../stores/github-store'
 import CpuGauge from '../components/system/CpuGauge'
 import MemoryBar from '../components/system/MemoryBar'
+import MetricsChart from '../components/system/MetricsChart'
 import StatusIndicator from '../components/project/StatusIndicator'
 import ProjectTypeBadge from '../components/project/ProjectTypeBadge'
 import Card, { CardBody, CardHeader } from '../components/ui/Card'
@@ -46,6 +50,7 @@ export default function DashboardPage() {
   const loadProjects = useProjectStore((s) => s.loadProjects)
 
   const metrics = useSystemStore((s) => s.metrics)
+  const metricsHistory = useSystemStore((s) => s.metricsHistory)
   const startMonitoring = useSystemStore((s) => s.startMonitoring)
 
   const startServer = useProcessStore((s) => s.startServer)
@@ -92,6 +97,48 @@ export default function DashboardPage() {
 
   const recentLogs = useMemo(() => entries.slice(-8), [entries])
   const recentActions = useMemo(() => actions.slice(0, 8), [actions])
+  const memoryPercent = metrics
+    ? Math.round(((metrics.memoryTotalBytes - metrics.memoryFreeBytes) / metrics.memoryTotalBytes) * 100)
+    : null
+
+  const StatCard = ({
+    label,
+    value,
+    icon,
+    accent,
+    onClick,
+    sublabel
+  }: {
+    label: string
+    value: string | number
+    icon: ReactNode
+    accent: string
+    onClick: () => void
+    sublabel?: string
+  }) => (
+    <Card
+      hover
+      onClick={onClick}
+      className="group overflow-hidden focus-within:border-dock-accent/40"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onClick()
+      }}
+    >
+      <CardBody className="relative flex items-center gap-3 min-h-[94px]">
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${accent}`} />
+        <div className="w-10 h-10 rounded-lg bg-dock-bg border border-dock-border flex items-center justify-center group-hover:border-dock-accent/30 transition-colors">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold text-dock-text leading-tight">{value}</p>
+          <p className="text-xs text-dock-muted">{label}</p>
+          {sublabel && <p className="text-[10px] text-dock-muted/70 mt-1 truncate">{sublabel}</p>}
+        </div>
+      </CardBody>
+    </Card>
+  )
 
   const ProjectRow = ({ project }: { project: typeof projects[0] }) => {
     const runtime = runtimes[project.id]
@@ -135,80 +182,103 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-dock-text">Dashboard</h1>
-        <p className="text-sm text-dock-muted mt-0.5">
-          Overview of your development environment
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-dock-text">Dashboard</h1>
+          <p className="text-sm text-dock-muted mt-0.5">
+            Overview of your development environment
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/github')}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg bg-dock-surface border border-dock-border hover:border-dock-accent/40 hover:bg-dock-card transition-colors text-left"
+        >
+          {credentials?.avatarUrl ? (
+            <img src={credentials.avatarUrl} alt={credentials.username} className="w-8 h-8 rounded-full" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-dock-bg flex items-center justify-center">
+              <Github size={16} className="text-dock-muted" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase text-dock-muted tracking-wide">GitHub</p>
+            <p className="text-sm font-medium text-dock-text truncate">
+              {credentials ? credentials.username : 'Not connected'}
+            </p>
+          </div>
+        </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardBody className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-dock-accent/10 flex items-center justify-center">
-              <FolderKanban size={20} className="text-dock-accent" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-dock-text">{runnableProjects.length}</p>
-              <p className="text-xs text-dock-muted">Projects</p>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-dock-green/10 flex items-center justify-center">
-              <Server size={20} className="text-dock-green" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-dock-text">{runningCount}</p>
-              <p className="text-xs text-dock-muted">Running</p>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-dock-purple/10 flex items-center justify-center">
-              <Activity size={20} className="text-dock-purple" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-dock-text">
-                {metrics ? `${metrics.cpuUsagePercent}%` : '--'}
-              </p>
-              <p className="text-xs text-dock-muted">CPU Usage</p>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-dock-cyan/10 flex items-center justify-center">
-              <Network size={20} className="text-dock-cyan" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-dock-text">
-                {metrics ? `${Math.round(((metrics.memoryTotalBytes - metrics.memoryFreeBytes) / metrics.memoryTotalBytes) * 100)}%` : '--'}
-              </p>
-              <p className="text-xs text-dock-muted">Memory</p>
-            </div>
-          </CardBody>
-        </Card>
+        <StatCard
+          label="Projects"
+          value={runnableProjects.length}
+          icon={<FolderKanban size={20} className="text-dock-accent" />}
+          accent="bg-dock-accent"
+          onClick={() => navigate('/projects')}
+          sublabel="Open project grid"
+        />
+        <StatCard
+          label="Running"
+          value={runningCount}
+          icon={<Server size={20} className="text-dock-green" />}
+          accent="bg-dock-green"
+          onClick={() => navigate('/processes')}
+          sublabel={runningCount > 0 ? 'Manage live servers' : 'No active servers'}
+        />
+        <StatCard
+          label="CPU Usage"
+          value={metrics ? `${metrics.cpuUsagePercent}%` : '--'}
+          icon={<Cpu size={20} className="text-dock-purple" />}
+          accent="bg-dock-purple"
+          onClick={() => navigate('/processes')}
+          sublabel={metrics ? `${metrics.cpuCores} cores monitored` : 'Loading metrics'}
+        />
+        <StatCard
+          label="Memory"
+          value={memoryPercent !== null ? `${memoryPercent}%` : '--'}
+          icon={<MemoryStick size={20} className="text-dock-cyan" />}
+          accent="bg-dock-cyan"
+          onClick={() => navigate('/processes')}
+          sublabel="View system details"
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         {/* System Metrics */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold text-dock-text">System</h2>
+        <Card className="col-span-2 overflow-hidden">
+          <CardHeader className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-dock-text flex items-center gap-2">
+              <Activity size={15} className="text-dock-accent" />
+              System Load
+            </h2>
+            <button className="text-xs text-dock-muted hover:text-dock-text" onClick={() => navigate('/processes')}>
+              Details
+            </button>
           </CardHeader>
-          <CardBody className="flex items-center justify-around">
+          <CardBody className="grid grid-cols-[180px_1fr] gap-5">
             {metrics ? (
               <>
-                <CpuGauge percent={metrics.cpuUsagePercent} cores={metrics.cpuCores} />
-                <div className="w-40">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <CpuGauge percent={metrics.cpuUsagePercent} cores={metrics.cpuCores} />
                   <MemoryBar used={metrics.memoryUsedBytes} total={metrics.memoryTotalBytes} />
+                </div>
+                <div className="grid grid-rows-2 gap-4 min-w-0">
+                  <div className="min-h-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-dock-text">CPU trend</span>
+                      <span className="text-[10px] text-dock-muted">last {metricsHistory.length} samples</span>
+                    </div>
+                    <MetricsChart data={metricsHistory} metric="cpu" />
+                  </div>
+                  <div className="min-h-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-dock-text">Memory trend</span>
+                      <span className="text-[10px] text-dock-muted">{memoryPercent}% used</span>
+                    </div>
+                    <MetricsChart data={metricsHistory} metric="memory" />
+                  </div>
                 </div>
               </>
             ) : (
@@ -218,7 +288,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Running now */}
-        <Card className="col-span-2">
+        <Card>
           <CardHeader className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-dock-text flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-dock-green animate-pulse" />
@@ -321,7 +391,8 @@ export default function DashboardPage() {
               recentActions.map((run) => (
                 <div
                   key={run.id}
-                  className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-dock-card/50 transition-colors group"
+                  className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-dock-card/50 transition-colors group cursor-pointer"
+                  onClick={() => window.open(run.htmlUrl, '_blank')}
                 >
                   <div className="shrink-0">
                     {(run.status === 'in_progress' || run.status === 'queued' || run.status === 'pending') ? (
@@ -363,7 +434,7 @@ export default function DashboardPage() {
                   <a
                     href={run.htmlUrl}
                     className="text-dock-muted hover:text-dock-text opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    onClick={(e) => { e.preventDefault(); window.open(run.htmlUrl, '_blank') }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(run.htmlUrl, '_blank') }}
                   >
                     <ExternalLink size={14} />
                   </a>
@@ -390,7 +461,8 @@ export default function DashboardPage() {
               recentLogs.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-start gap-2 py-0.5 px-2"
+                  className="flex items-start gap-2 py-0.5 px-2 hover:bg-dock-card/50 cursor-pointer transition-colors"
+                  onClick={() => navigate('/logs')}
                 >
                   <span className="text-dock-muted/60 flex-shrink-0">
                     {new Date(entry.timestamp).toLocaleTimeString()}

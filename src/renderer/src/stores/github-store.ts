@@ -10,6 +10,7 @@ import {
 
 interface GitHubStore {
   credentials: GitHubCredentials | null
+  accounts: GitHubCredentials[]
   repos: GitHubRepo[]
   prs: GitHubPR[]
   issues: GitHubIssue[]
@@ -20,7 +21,8 @@ interface GitHubStore {
 
   loadCredentials: () => Promise<void>
   setToken: (token: string) => Promise<void>
-  removeToken: () => Promise<void>
+  removeToken: (username?: string) => Promise<void>
+  switchAccount: (username: string) => Promise<void>
   testConnection: (token?: string) => Promise<{ ok: boolean; error?: string }>
   loadAll: () => Promise<void>
   startPolling: () => Promise<void>
@@ -37,6 +39,7 @@ interface GitHubStore {
 
 export const useGitHubStore = create<GitHubStore>((set) => ({
   credentials: null,
+  accounts: [],
   repos: [],
   prs: [],
   issues: [],
@@ -46,26 +49,38 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
   connectionError: null,
 
   loadCredentials: async () => {
-    const creds = (await window.api.getGitHubCredentials()) as GitHubCredentials | null
-    set({ credentials: creds })
+    const [creds, accounts] = await Promise.all([
+      window.api.getGitHubCredentials(),
+      window.api.getGitHubAccounts()
+    ])
+    set({
+      credentials: creds as GitHubCredentials | null,
+      accounts: ((accounts as GitHubCredentials[]) || [])
+    })
   },
 
   setToken: async (token: string) => {
     set({ loading: true, connectionError: null })
     try {
       const creds = (await window.api.setGitHubToken(token)) as GitHubCredentials
-      set({ credentials: creds, loading: false })
-      await window.api.startGitHubPolling()
+      const accounts = (await window.api.getGitHubAccounts()) as GitHubCredentials[]
+      set({ credentials: creds, accounts: accounts || [], loading: false })
+      await useGitHubStore.getState().loadAll()
     } catch (err: any) {
       set({ loading: false, connectionError: err.message || 'Failed to set token' })
       throw err
     }
   },
 
-  removeToken: async () => {
-    await window.api.removeGitHubToken()
+  removeToken: async (username?: string) => {
+    await window.api.removeGitHubToken(username)
+    const [creds, accounts] = await Promise.all([
+      window.api.getGitHubCredentials(),
+      window.api.getGitHubAccounts()
+    ])
     set({
-      credentials: null,
+      credentials: creds as GitHubCredentials | null,
+      accounts: ((accounts as GitHubCredentials[]) || []),
       repos: [],
       prs: [],
       issues: [],
@@ -73,6 +88,30 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
       notifications: [],
       connectionError: null
     })
+    if (creds) {
+      await useGitHubStore.getState().loadAll()
+    }
+  },
+
+  switchAccount: async (username: string) => {
+    set({ loading: true, connectionError: null })
+    try {
+      const creds = (await window.api.switchGitHubAccount(username)) as GitHubCredentials
+      const accounts = (await window.api.getGitHubAccounts()) as GitHubCredentials[]
+      set({
+        credentials: creds,
+        accounts: accounts || [],
+        repos: [],
+        prs: [],
+        issues: [],
+        actions: [],
+        notifications: []
+      })
+      await useGitHubStore.getState().loadAll()
+    } catch (err: any) {
+      set({ loading: false, connectionError: err.message || 'Failed to switch account' })
+      throw err
+    }
   },
 
   testConnection: async (token?: string) => {

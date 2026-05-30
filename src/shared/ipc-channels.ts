@@ -1,6 +1,7 @@
 export const IPC = {
   // Project Management
   PROJECT_ADD: 'project:add',
+  PROJECT_CLONE: 'project:clone',
   PROJECT_REMOVE: 'project:remove',
   PROJECT_UPDATE: 'project:update',
   PROJECT_LIST: 'project:list',
@@ -112,6 +113,8 @@ export const IPC = {
   GITHUB_SET_TOKEN: 'github:set-token',
   GITHUB_REMOVE_TOKEN: 'github:remove-token',
   GITHUB_GET_CREDENTIALS: 'github:get-credentials',
+  GITHUB_GET_ACCOUNTS: 'github:get-accounts',
+  GITHUB_SWITCH_ACCOUNT: 'github:switch-account',
   GITHUB_TEST_CONNECTION: 'github:test-connection',
   GITHUB_GET_REPOS: 'github:get-repos',
   GITHUB_GET_PRS: 'github:get-prs',

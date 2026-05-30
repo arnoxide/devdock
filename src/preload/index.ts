@@ -14,6 +14,7 @@ function createListener(channel: string) {
 const api = {
   // Project
   addProject: (path: string) => ipcRenderer.invoke(IPC.PROJECT_ADD, path),
+  cloneProject: (request: unknown) => ipcRenderer.invoke(IPC.PROJECT_CLONE, request),
   removeProject: (id: string) => ipcRenderer.invoke(IPC.PROJECT_REMOVE, id),
   syncGroup: (groupId: string) => ipcRenderer.invoke(IPC.PROJECT_GROUP_SYNC, groupId),
   openInEditor: (path: string) => ipcRenderer.invoke(IPC.PROJECT_OPEN_IN_EDITOR, path),
@@ -117,8 +118,11 @@ const api = {
 
   // GitHub
   setGitHubToken: (token: string) => ipcRenderer.invoke(IPC.GITHUB_SET_TOKEN, token),
-  removeGitHubToken: () => ipcRenderer.invoke(IPC.GITHUB_REMOVE_TOKEN),
+  removeGitHubToken: (username?: string) => ipcRenderer.invoke(IPC.GITHUB_REMOVE_TOKEN, username),
   getGitHubCredentials: () => ipcRenderer.invoke(IPC.GITHUB_GET_CREDENTIALS),
+  getGitHubAccounts: () => ipcRenderer.invoke(IPC.GITHUB_GET_ACCOUNTS),
+  switchGitHubAccount: (username: string) =>
+    ipcRenderer.invoke(IPC.GITHUB_SWITCH_ACCOUNT, username),
   testGitHubConnection: (token?: string) =>
     ipcRenderer.invoke(IPC.GITHUB_TEST_CONNECTION, token),
   getGitHubRepos: () => ipcRenderer.invoke(IPC.GITHUB_GET_REPOS),

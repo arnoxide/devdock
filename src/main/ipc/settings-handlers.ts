@@ -14,7 +14,7 @@ function applyLaunchAtStartup(enable: boolean): void {
     const desktopFile = path.join(autostartDir, 'devdock.desktop')
     if (enable) {
       const execPath = app.getPath('exe')
-      const content = `[Desktop Entry]\nType=Application\nName=DevDock\nExec=${execPath}\nIcon=devdock\nX-GNOME-Autostart-enabled=true\nComment=DevDock - Local Dev Manager\n`
+      const content = `[Desktop Entry]\nType=Application\nName=DevDock\nExec=${execPath}\nIcon=devdock\nX-GNOME-Autostart-enabled=true\nStartupNotify=false\nComment=DevDock - Local Dev Manager\n`
       fs.mkdirSync(autostartDir, { recursive: true })
       fs.writeFileSync(desktopFile, content)
     } else {
@@ -32,12 +32,19 @@ export function registerSettingsHandlers(): void {
 
   ipcMain.handle(IPC.SETTINGS_UPDATE, async (_event, settings: Partial<GlobalSettings>) => {
     const current = store.get('globalSettings')
-    const updated = { ...current, ...settings }
-    store.set('globalSettings', updated)
+    let merged = { ...current, ...settings }
+
+    // When enabling launch at startup, force closeToTray + startMinimized
+    // so the app stays alive in tray on reboot instead of popping a window then quitting
+    if (settings.launchAtStartup === true) {
+      merged = { ...merged, closeToTray: true, startMinimized: true }
+    }
+
+    store.set('globalSettings', merged)
     if ('launchAtStartup' in settings) {
       applyLaunchAtStartup(!!settings.launchAtStartup)
     }
-    return updated
+    return merged
   })
 
   ipcMain.handle(IPC.SETTINGS_EXPORT, async () => {

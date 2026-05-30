@@ -8,6 +8,7 @@ interface ProjectStore {
 
   loadProjects: () => Promise<void>
   addProject: (path: string) => Promise<ProjectConfig>
+  cloneProject: (request: { repoUrl: string; parentPath: string; directoryName?: string }) => Promise<ProjectConfig>
   syncGroup: (groupId: string) => Promise<ProjectConfig[]>
   removeProject: (id: string) => Promise<void>
   updateProject: (config: Partial<ProjectConfig> & { id: string }) => Promise<void>
@@ -40,6 +41,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   addProject: async (path: string) => {
     const project = await window.api.addProject(path)
     // Reload all projects from backend to capture bulk-added children
+    const allProjects = await window.api.listProjects()
+    set({ projects: allProjects })
+    return project
+  },
+
+  cloneProject: async (request) => {
+    if (typeof window.api.cloneProject !== 'function') {
+      throw new Error('Clone support is not loaded yet. Restart DevDock so the updated preload API is available.')
+    }
+    const project = await window.api.cloneProject(request)
     const allProjects = await window.api.listProjects()
     set({ projects: allProjects })
     return project
