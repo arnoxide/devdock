@@ -130,6 +130,50 @@ export class GitHubService extends EventEmitter {
     }
   }
 
+  async createPullRequest(input: {
+    owner: string
+    repo: string
+    title: string
+    body?: string
+    head: string
+    base: string
+    draft?: boolean
+  }): Promise<{
+    number: number
+    title: string
+    htmlUrl: string
+    repoFullName: string
+    headBranch: string
+    baseBranch: string
+  }> {
+    const creds = this.getSettings().credentials
+    if (!creds?.token) throw new Error('Connect a GitHub account before creating a pull request.')
+
+    const pr = await this.fetchApi<any>(
+      `/repos/${input.owner}/${input.repo}/pulls`,
+      creds.token,
+      'POST',
+      {
+        title: input.title,
+        body: input.body || '',
+        head: input.head,
+        base: input.base,
+        draft: Boolean(input.draft)
+      }
+    )
+
+    await this.refreshNow()
+
+    return {
+      number: pr.number,
+      title: pr.title,
+      htmlUrl: pr.html_url,
+      repoFullName: pr.base?.repo?.full_name || `${input.owner}/${input.repo}`,
+      headBranch: pr.head?.ref || input.head,
+      baseBranch: pr.base?.ref || input.base
+    }
+  }
+
   // --- Polling ---
 
   startPolling(): void {

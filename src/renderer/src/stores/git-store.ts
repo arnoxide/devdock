@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { GitStatus } from '../../../shared/types'
+import { GitCreatePullRequestRequest, GitCreatePullRequestResult, GitStatus } from '../../../shared/types'
 
 interface GitStore {
     statuses: Record<string, GitStatus | null>
@@ -16,6 +16,7 @@ interface GitStore {
     sync: (projectId: string) => Promise<void>
     setRemote: (projectId: string, url: string) => Promise<void>
     getRemote: (projectId: string) => Promise<string | null>
+    createPullRequest: (request: GitCreatePullRequestRequest) => Promise<GitCreatePullRequestResult>
 
     // SSH
     loadSshKey: () => Promise<void>
@@ -124,6 +125,10 @@ export const useGitStore = create<GitStore>((set, get) => ({
 
     getRemote: async (projectId: string) => {
         return window.api.gitGetRemote(projectId)
+    },
+
+    createPullRequest: async (request) => {
+        return window.api.gitCreatePullRequest(request)
     },
 
     loadSshKey: async () => {

@@ -15,11 +15,13 @@ import {
     FileX,
     FileDiff,
     RotateCcw,
-    Github
+    Github,
+    ExternalLink,
+    Sparkles
 } from 'lucide-react'
 import { useGitStore } from '../../stores/git-store'
 import { useGitHubStore } from '../../stores/github-store'
-import { GitFileStatus } from '../../../../shared/types'
+import { GitCreatePullRequestResult, GitFileStatus } from '../../../../shared/types'
 import Button from '../ui/Button'
 import Card, { CardBody } from '../ui/Card'
 import Badge from '../ui/Badge'
@@ -74,6 +76,7 @@ export default function GitControl({ projectId }: GitControlProps) {
     const init = useGitStore((s) => s.init)
     const setRemote = useGitStore((s) => s.setRemote)
     const getRemote = useGitStore((s) => s.getRemote)
+    const createPullRequest = useGitStore((s) => s.createPullRequest)
     const githubCredentials = useGitHubStore((s) => s.credentials)
     const githubAccounts = useGitHubStore((s) => s.accounts)
     const switchGitHubAccount = useGitHubStore((s) => s.switchAccount)
@@ -82,8 +85,16 @@ export default function GitControl({ projectId }: GitControlProps) {
     const [isCommitting, setIsCommitting] = useState(false)
     const [isSettingRemote, setIsSettingRemote] = useState(false)
     const [isSwitchingAccount, setIsSwitchingAccount] = useState(false)
+    const [isCreatingPr, setIsCreatingPr] = useState(false)
     const [remoteUrl, setRemoteUrl] = useState('')
     const [showRemoteDialog, setShowRemoteDialog] = useState(false)
+    const [showPrDialog, setShowPrDialog] = useState(false)
+    const [prTitle, setPrTitle] = useState('')
+    const [prBody, setPrBody] = useState('')
+    const [prBase, setPrBase] = useState('main')
+    const [prDraft, setPrDraft] = useState(false)
+    const [prError, setPrError] = useState<string | null>(null)
+    const [createdPr, setCreatedPr] = useState<GitCreatePullRequestResult | null>(null)
 
     useEffect(() => {
         loadStatus(projectId)
@@ -124,6 +135,44 @@ export default function GitControl({ projectId }: GitControlProps) {
             await switchGitHubAccount(username)
         } finally {
             setIsSwitchingAccount(false)
+        }
+    }
+
+    const handleOpenPrDialog = () => {
+        const defaultTitle = status?.lastCommit?.message || `${status?.branch || 'branch'} changes`
+        setPrTitle(defaultTitle)
+        setPrBody([
+            '## Summary',
+            '- ',
+            '',
+            '## Testing',
+            '- '
+        ].join('\n'))
+        setPrBase(status?.branch === 'main' ? 'develop' : 'main')
+        setPrDraft(false)
+        setPrError(null)
+        setCreatedPr(null)
+        setShowPrDialog(true)
+    }
+
+    const handleCreatePr = async () => {
+        if (!prTitle.trim()) return
+        setIsCreatingPr(true)
+        setPrError(null)
+        setCreatedPr(null)
+        try {
+            const result = await createPullRequest({
+                projectId,
+                title: prTitle.trim(),
+                body: prBody.trim(),
+                base: prBase.trim() || 'main',
+                draft: prDraft
+            })
+            setCreatedPr(result)
+        } catch (err: any) {
+            setPrError(err.message || 'Failed to create pull request')
+        } finally {
+            setIsCreatingPr(false)
         }
     }
 
@@ -402,6 +451,42 @@ export default function GitControl({ projectId }: GitControlProps) {
                         </Card>
                     )}
 
+                    <Card className="border-dock-accent/20">
+                        <CardBody className="space-y-3">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent shrink-0">
+                                    <GitPullRequest size={18} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-dock-text">Pull Request</p>
+                                    <p className="text-[11px] text-dock-muted leading-relaxed mt-0.5">
+                                        Open a readable PR from <span className="font-mono text-dock-text">{status.branch}</span> using the active GitHub account.
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={handleOpenPrDialog}
+                                disabled={!status.hasRemote || !githubCredentials || status.branch === 'HEAD (no commits)' || hasChangesToCommit || isAhead}
+                                title={
+                                    !githubCredentials
+                                        ? 'Connect a GitHub account first'
+                                        : !status.hasRemote
+                                            ? 'Set a GitHub remote first'
+                                            : hasChangesToCommit
+                                                ? 'Commit your changes first'
+                                                : isAhead
+                                                    ? 'Push your branch before opening a PR'
+                                                    : undefined
+                                }
+                            >
+                                <Sparkles size={14} />
+                                Create Pull Request
+                            </Button>
+                        </CardBody>
+                    </Card>
+
                     {/* Latest Commit */}
                     <Card>
                         <div className="p-4 border-b border-dock-border">
@@ -526,6 +611,109 @@ export default function GitControl({ projectId }: GitControlProps) {
                         >
                             {isSettingRemote ? 'Saving...' : 'Save Remote'}
                         </Button>
+                    </div>
+                </div>
+            </Dialog>
+
+            <Dialog
+                open={showPrDialog}
+                onClose={() => {
+                    if (!isCreatingPr) setShowPrDialog(false)
+                }}
+                title="Create Pull Request"
+                maxWidth="max-w-2xl"
+            >
+                <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div className="rounded-lg border border-dock-border bg-dock-bg/30 p-3">
+                            <p className="text-dock-muted">From</p>
+                            <p className="font-mono text-dock-text truncate mt-1">{status.branch}</p>
+                        </div>
+                        <div className="rounded-lg border border-dock-border bg-dock-bg/30 p-3">
+                            <p className="text-dock-muted">Into</p>
+                            <p className="font-mono text-dock-text truncate mt-1">{prBase || 'main'}</p>
+                        </div>
+                        <div className="rounded-lg border border-dock-border bg-dock-bg/30 p-3">
+                            <p className="text-dock-muted">Account</p>
+                            <p className="text-dock-text truncate mt-1">{githubCredentials?.username || 'Not connected'}</p>
+                        </div>
+                    </div>
+
+                    <Input
+                        label="Title"
+                        value={prTitle}
+                        onChange={(e) => setPrTitle(e.target.value)}
+                        placeholder="Describe the change clearly"
+                        disabled={isCreatingPr || Boolean(createdPr)}
+                    />
+
+                    <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+                        <Input
+                            label="Base branch"
+                            value={prBase}
+                            onChange={(e) => setPrBase(e.target.value)}
+                            placeholder="main"
+                            disabled={isCreatingPr || Boolean(createdPr)}
+                        />
+                        <label className="flex items-center gap-2 h-10 px-3 rounded-lg border border-dock-border bg-dock-bg/30 text-xs text-dock-muted">
+                            <input
+                                type="checkbox"
+                                checked={prDraft}
+                                onChange={(e) => setPrDraft(e.target.checked)}
+                                disabled={isCreatingPr || Boolean(createdPr)}
+                            />
+                            Draft
+                        </label>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="block text-xs font-medium text-dock-muted">Description</label>
+                        <textarea
+                            value={prBody}
+                            onChange={(e) => setPrBody(e.target.value)}
+                            disabled={isCreatingPr || Boolean(createdPr)}
+                            className="w-full min-h-[180px] glass-control rounded-lg px-3 py-2 text-sm text-dock-text placeholder:text-dock-muted/50 focus:outline-none focus:ring-2 focus:ring-dock-accent/50 focus:border-dock-accent resize-y font-mono"
+                        />
+                    </div>
+
+                    {isAhead && (
+                        <div className="rounded-lg border border-dock-yellow/20 bg-dock-yellow/10 px-3 py-2 text-xs text-dock-yellow">
+                            Push your local commits before creating a PR so GitHub can see this branch.
+                        </div>
+                    )}
+
+                    {prError && (
+                        <div className="rounded-lg border border-dock-red/20 bg-dock-red/10 px-3 py-2 text-xs text-dock-red">
+                            {prError}
+                        </div>
+                    )}
+
+                    {createdPr && (
+                        <div className="rounded-lg border border-dock-green/20 bg-dock-green/10 px-3 py-3 text-sm">
+                            <p className="font-semibold text-dock-green">Pull request created</p>
+                            <p className="text-xs text-dock-muted mt-1">
+                                #{createdPr.number} {createdPr.repoFullName}: {createdPr.headBranch} → {createdPr.baseBranch}
+                            </p>
+                            <button
+                                onClick={() => window.open(createdPr.htmlUrl, '_blank')}
+                                className="inline-flex items-center gap-1.5 mt-3 text-xs text-dock-accent hover:underline"
+                            >
+                                <ExternalLink size={13} />
+                                Open PR
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" onClick={() => setShowPrDialog(false)} disabled={isCreatingPr}>
+                            {createdPr ? 'Close' : 'Cancel'}
+                        </Button>
+                        {!createdPr && (
+                            <Button onClick={handleCreatePr} disabled={isCreatingPr || !prTitle.trim() || !prBase.trim()}>
+                                {isCreatingPr ? <RefreshCw size={14} className="animate-spin" /> : <GitPullRequest size={14} />}
+                                {isCreatingPr ? 'Creating...' : 'Create PR'}
+                            </Button>
+                        )}
                     </div>
                 </div>
             </Dialog>

@@ -270,6 +270,13 @@ export class GitService {
             return null
         }
     }
+
+    async getCurrentBranch(projectPath: string): Promise<string> {
+        const { stdout } = await execAsync('git branch --show-current', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        const branch = stdout.trim()
+        if (!branch) throw new Error('Create a branch before opening a pull request.')
+        return branch
+    }
 }
 
 export const gitService = new GitService()

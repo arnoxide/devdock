@@ -154,6 +154,7 @@ const api = {
   gitSync: (projectId: string) => ipcRenderer.invoke(IPC.GIT_SYNC, projectId),
   gitGetRemote: (projectId: string) => ipcRenderer.invoke(IPC.GIT_GET_REMOTE, projectId),
   gitSetRemote: (projectId: string, url: string) => ipcRenderer.invoke(IPC.GIT_SET_REMOTE, { projectId, url }),
+  gitCreatePullRequest: (request: unknown) => ipcRenderer.invoke(IPC.GIT_CREATE_PR, request),
 
   // SSH
   sshGetKey: () => ipcRenderer.invoke(IPC.SSH_GET_KEY),

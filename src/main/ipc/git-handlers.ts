@@ -4,13 +4,29 @@ import { gitService } from '../services/git-service'
 import { githubService } from '../services/github-service'
 import { sshService } from '../services/ssh-service'
 import store from '../store'
-import { ProjectConfig } from '../../shared/types'
+import { GitCreatePullRequestRequest, ProjectConfig } from '../../shared/types'
 
 function getProjectPath(projectId: string): string {
     const projects = store.get('projects', []) as ProjectConfig[]
     const project = projects.find(p => p.id === projectId)
     if (!project) throw new Error('Project not found')
     return project.path
+}
+
+function parseGitHubRemote(remoteUrl: string | null): { owner: string; repo: string } {
+    if (!remoteUrl) throw new Error('Set a GitHub remote before creating a pull request.')
+
+    const normalized = remoteUrl.trim().replace(/\.git$/, '')
+    const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i)
+    if (httpsMatch) return { owner: httpsMatch[1], repo: httpsMatch[2] }
+
+    const sshMatch = normalized.match(/^git@github\.com:([^/]+)\/([^/]+)$/i)
+    if (sshMatch) return { owner: sshMatch[1], repo: sshMatch[2] }
+
+    const sshUrlMatch = normalized.match(/^ssh:\/\/git@github\.com\/([^/]+)\/([^/]+)$/i)
+    if (sshUrlMatch) return { owner: sshUrlMatch[1], repo: sshUrlMatch[2] }
+
+    throw new Error('Pull requests can only be created for GitHub remotes.')
 }
 
 export function registerGitHandlers(): void {
@@ -62,6 +78,23 @@ export function registerGitHandlers(): void {
         const projectPath = getProjectPath(projectId)
         await gitService.pull(projectPath)
         await gitService.push(projectPath)
+    })
+
+    ipcMain.handle(IPC.GIT_CREATE_PR, async (_event, request: GitCreatePullRequestRequest) => {
+        const projectPath = getProjectPath(request.projectId)
+        const remote = await gitService.getRemote(projectPath)
+        const branch = await gitService.getCurrentBranch(projectPath)
+        const repo = parseGitHubRemote(remote)
+
+        return githubService.createPullRequest({
+            owner: repo.owner,
+            repo: repo.repo,
+            title: request.title,
+            body: request.body,
+            head: branch,
+            base: request.base,
+            draft: request.draft
+        })
     })
 
     // SSH Handlers

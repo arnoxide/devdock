@@ -563,3 +563,20 @@ export interface GitCommitRequest {
   message: string
   files?: string[] // if empty, commit all staged
 }
+
+export interface GitCreatePullRequestRequest {
+  projectId: string
+  title: string
+  body?: string
+  base: string
+  draft?: boolean
+}
+
+export interface GitCreatePullRequestResult {
+  number: number
+  title: string
+  htmlUrl: string
+  repoFullName: string
+  headBranch: string
+  baseBranch: string
+}

@@ -149,6 +149,7 @@ export const IPC = {
   GIT_SYNC: 'git:sync',
   GIT_GET_REMOTE: 'git:get-remote',
   GIT_SET_REMOTE: 'git:set-remote',
+  GIT_CREATE_PR: 'git:create-pr',
 
   // SSH Management
   SSH_GET_KEY: 'ssh:get-key',
