@@ -7,8 +7,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export default function Card({ hover = false, className = '', children, ...props }: CardProps) {
   return (
     <div
-      className={`bg-dock-surface border border-dock-border rounded-xl ${
-        hover ? 'hover:border-dock-accent/30 transition-colors cursor-pointer' : ''
+      className={`glass-card rounded-xl ${
+        hover ? 'hover:border-dock-accent/40 hover:bg-dock-card transition-colors cursor-pointer' : ''
       } ${className}`}
       {...props}
     >

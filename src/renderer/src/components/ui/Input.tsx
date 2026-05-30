@@ -14,7 +14,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <input
           ref={ref}
-          className={`w-full bg-dock-bg border border-dock-border rounded-lg px-3 py-2 text-sm text-dock-text
+          className={`w-full glass-control rounded-lg px-3 py-2 text-sm text-dock-text
             placeholder:text-dock-muted/50
             focus:outline-none focus:ring-2 focus:ring-dock-accent/50 focus:border-dock-accent
             disabled:opacity-50 disabled:cursor-not-allowed

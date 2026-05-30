@@ -22,7 +22,7 @@ export default function ProjectListPage() {
   const cloneProject = useProjectStore((s) => s.cloneProject)
   const githubCredentials = useGitHubStore((s) => s.credentials)
   const githubRepos = useGitHubStore((s) => s.repos)
-  const loadGitHubData = useGitHubStore((s) => s.loadAll)
+  const refreshGitHubData = useGitHubStore((s) => s.refreshNow)
 
   const [search, setSearch] = useState('')
   const [showCloneDialog, setShowCloneDialog] = useState(false)
@@ -38,7 +38,7 @@ export default function ProjectListPage() {
 
   useEffect(() => {
     if (githubCredentials && githubRepos.length === 0) {
-      loadGitHubData()
+      refreshGitHubData()
     }
   }, [githubCredentials?.username])
 
@@ -197,7 +197,21 @@ export default function ProjectListPage() {
         title="Clone Repository"
       >
         <div className="space-y-4">
-          {githubRepos.length > 0 && (
+          {githubCredentials && (
+            <div className="flex items-center gap-2 rounded-lg border border-dock-border bg-dock-bg/30 px-3 py-2">
+              {githubCredentials.avatarUrl ? (
+                <img src={githubCredentials.avatarUrl} alt={githubCredentials.username} className="w-6 h-6 rounded-full" />
+              ) : (
+                <Github size={14} className="text-dock-muted" />
+              )}
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-dock-muted">Active GitHub account</p>
+                <p className="text-xs font-medium text-dock-text truncate">{githubCredentials.username}</p>
+              </div>
+            </div>
+          )}
+
+          {githubRepos.length > 0 ? (
             <div className="space-y-1">
               <label className="block text-xs font-medium text-dock-muted">GitHub repository</label>
               <div className="relative">
@@ -216,7 +230,11 @@ export default function ProjectListPage() {
                 </select>
               </div>
             </div>
-          )}
+          ) : githubCredentials ? (
+            <div className="rounded-lg border border-dock-border bg-dock-bg/30 px-3 py-2 text-xs text-dock-muted">
+              No repositories loaded for {githubCredentials.username} yet. You can still paste a repository URL below.
+            </div>
+          ) : null}
 
           <Input
             label="Repository URL"

@@ -125,6 +125,7 @@ export const IPC = {
   GITHUB_MARK_ALL_NOTIFICATIONS_READ: 'github:mark-all-notifications-read',
   GITHUB_START_POLLING: 'github:start-polling',
   GITHUB_STOP_POLLING: 'github:stop-polling',
+  GITHUB_REFRESH_NOW: 'github:refresh-now',
   // Main -> Renderer pushes
   GITHUB_REPOS_UPDATE: 'github:repos-update',
   GITHUB_PRS_UPDATE: 'github:prs-update',

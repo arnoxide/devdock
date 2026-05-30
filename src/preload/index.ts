@@ -136,6 +136,7 @@ const api = {
     ipcRenderer.invoke(IPC.GITHUB_MARK_ALL_NOTIFICATIONS_READ),
   startGitHubPolling: () => ipcRenderer.invoke(IPC.GITHUB_START_POLLING),
   stopGitHubPolling: () => ipcRenderer.invoke(IPC.GITHUB_STOP_POLLING),
+  refreshGitHubNow: () => ipcRenderer.invoke(IPC.GITHUB_REFRESH_NOW),
 
   // Settings
   getSettings: () => ipcRenderer.invoke(IPC.SETTINGS_GET),

@@ -37,9 +37,9 @@ export default function Dialog({
       }}
     >
       <div
-        className={`${maxWidth} w-full bg-dock-surface border border-dock-border rounded-xl shadow-2xl animate-fade-in`}
+        className={`${maxWidth} w-full glass-panel cosmic-edge rounded-xl animate-fade-in`}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-dock-border">
+        <div className="relative flex items-center justify-between px-4 py-3 border-b border-dock-border">
           <h3 className="text-sm font-semibold text-dock-text">{title}</h3>
           <button
             onClick={onClose}
@@ -48,7 +48,7 @@ export default function Dialog({
             <X size={16} />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="relative p-4">{children}</div>
       </div>
     </div>
   )

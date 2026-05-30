@@ -51,12 +51,12 @@ export default function Header() {
 
   return (
     <>
-    <header className="h-14 border-b border-dock-border bg-dock-surface/50 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-6 pr-36">
+    <header className="glass-panel h-14 rounded-none border-x-0 border-t-0 sticky top-0 z-30 flex items-center justify-between px-6 pr-36">
       <div className="flex items-center gap-2 mr-3">
         <button
           onClick={() => navigate(-1)}
           disabled={!canGoBack}
-          className="p-1.5 rounded-lg text-dock-muted hover:text-dock-text hover:bg-dock-card transition-all disabled:opacity-25 disabled:cursor-default"
+          className="p-1.5 rounded-lg text-dock-muted hover:text-dock-text hover:bg-white/10 transition-all disabled:opacity-25 disabled:cursor-default"
           title="Go back"
         >
           <ChevronLeft size={18} />
@@ -65,7 +65,7 @@ export default function Header() {
 
       <button
         onClick={() => setPaletteOpen(true)}
-        className="flex-1 max-w-md relative group hidden md:flex items-center gap-2 bg-dock-bg/50 border border-dock-border rounded-lg pl-3 pr-4 py-1.5 text-sm text-dock-muted hover:border-dock-accent hover:text-dock-text transition-all text-left"
+        className="glass-control flex-1 max-w-md relative group hidden md:flex items-center gap-2 rounded-lg pl-3 pr-4 py-1.5 text-sm text-dock-muted hover:border-dock-accent hover:text-dock-text transition-all text-left"
       >
         <Search size={16} className="shrink-0" />
         <span className="flex-1">Quick search...</span>
@@ -108,11 +108,11 @@ export default function Header() {
 
         <div className="w-px h-6 bg-dock-border mx-2" />
 
-        <Link to="/notifications" className="p-2 text-dock-muted hover:text-dock-text hover:bg-dock-card rounded-lg transition-all relative group">
+        <Link to="/notifications" className="p-2 text-dock-muted hover:text-dock-text hover:bg-white/10 rounded-lg transition-all relative group">
           <Bell size={18} />
         </Link>
 
-        <Link to="/profile" className="flex items-center gap-2 p-1 pl-1 pr-2 rounded-full hover:bg-dock-card transition-all border border-transparent hover:border-dock-border">
+        <Link to="/profile" className="flex items-center gap-2 p-1 pl-1 pr-2 rounded-full hover:bg-white/10 transition-all border border-transparent hover:border-dock-border">
           <div className="w-8 h-8 rounded-full bg-dock-accent/20 flex items-center justify-center text-dock-accent font-bold text-xs ring-1 ring-dock-accent/30">
             <User size={14} />
           </div>

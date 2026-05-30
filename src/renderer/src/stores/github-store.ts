@@ -25,6 +25,7 @@ interface GitHubStore {
   switchAccount: (username: string) => Promise<void>
   testConnection: (token?: string) => Promise<{ ok: boolean; error?: string }>
   loadAll: () => Promise<void>
+  refreshNow: () => Promise<void>
   startPolling: () => Promise<void>
   stopPolling: () => Promise<void>
   markNotificationRead: (threadId: string) => Promise<void>
@@ -35,6 +36,12 @@ interface GitHubStore {
   updateIssues: (issues: GitHubIssue[]) => void
   updateActions: (actions: GitHubWorkflowRun[]) => void
   updateNotifications: (notifications: GitHubNotification[]) => void
+}
+
+async function refreshGitHubNowIfAvailable(): Promise<void> {
+  if (typeof window.api.refreshGitHubNow === 'function') {
+    await window.api.refreshGitHubNow()
+  }
 }
 
 export const useGitHubStore = create<GitHubStore>((set) => ({
@@ -64,7 +71,8 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
     try {
       const creds = (await window.api.setGitHubToken(token)) as GitHubCredentials
       const accounts = (await window.api.getGitHubAccounts()) as GitHubCredentials[]
-      set({ credentials: creds, accounts: accounts || [], loading: false })
+      set({ credentials: creds, accounts: accounts || [] })
+      await refreshGitHubNowIfAvailable()
       await useGitHubStore.getState().loadAll()
     } catch (err: any) {
       set({ loading: false, connectionError: err.message || 'Failed to set token' })
@@ -89,6 +97,7 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
       connectionError: null
     })
     if (creds) {
+      await refreshGitHubNowIfAvailable()
       await useGitHubStore.getState().loadAll()
     }
   },
@@ -107,6 +116,7 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
         actions: [],
         notifications: []
       })
+      await refreshGitHubNowIfAvailable()
       await useGitHubStore.getState().loadAll()
     } catch (err: any) {
       set({ loading: false, connectionError: err.message || 'Failed to switch account' })
@@ -143,6 +153,17 @@ export const useGitHubStore = create<GitHubStore>((set) => ({
           : [],
       loading: false
     })
+  },
+
+  refreshNow: async () => {
+    set({ loading: true, connectionError: null })
+    try {
+      await refreshGitHubNowIfAvailable()
+      await useGitHubStore.getState().loadAll()
+    } catch (err: any) {
+      set({ loading: false, connectionError: err.message || 'Failed to refresh GitHub data' })
+      throw err
+    }
   },
 
   startPolling: async () => {

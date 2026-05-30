@@ -28,7 +28,9 @@ export function registerGitHubHandlers(): void {
 
   // Token management
   ipcMain.handle(IPC.GITHUB_SET_TOKEN, async (_event, token: string) => {
-    return githubService.setToken(token)
+    const creds = await githubService.setToken(token)
+    await githubService.refreshNow()
+    return creds
   })
 
   ipcMain.handle(IPC.GITHUB_REMOVE_TOKEN, async (_event, username?: string) => {
@@ -44,7 +46,9 @@ export function registerGitHubHandlers(): void {
   })
 
   ipcMain.handle(IPC.GITHUB_SWITCH_ACCOUNT, async (_event, username: string) => {
-    return githubService.switchAccount(username)
+    const creds = githubService.switchAccount(username)
+    await githubService.refreshNow()
+    return creds
   })
 
   ipcMain.handle(IPC.GITHUB_TEST_CONNECTION, async (_event, token?: string) => {
@@ -88,5 +92,9 @@ export function registerGitHubHandlers(): void {
 
   ipcMain.handle(IPC.GITHUB_STOP_POLLING, async () => {
     githubService.stopPolling()
+  })
+
+  ipcMain.handle(IPC.GITHUB_REFRESH_NOW, async () => {
+    await githubService.refreshNow()
   })
 }

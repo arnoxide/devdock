@@ -6,11 +6,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary: 'bg-dock-accent hover:bg-blue-600 text-white',
-  secondary: 'bg-dock-card hover:bg-dock-border text-dock-text border border-dock-border',
-  danger: 'bg-dock-red/10 hover:bg-dock-red/20 text-dock-red border border-dock-red/20',
-  ghost: 'hover:bg-dock-card text-dock-muted hover:text-dock-text',
-  success: 'bg-dock-green/10 hover:bg-dock-green/20 text-dock-green border border-dock-green/20'
+  primary: 'bg-dock-accent hover:bg-dock-cyan text-white border border-cyan-200/20 shadow-[0_10px_24px_rgba(34,211,238,0.18)]',
+  secondary: 'glass-control hover:border-dock-accent/40 text-dock-text',
+  danger: 'bg-dock-red/10 hover:bg-dock-red/20 text-dock-red border border-dock-red/25 backdrop-blur-md',
+  ghost: 'hover:bg-white/10 text-dock-muted hover:text-dock-text',
+  success: 'bg-dock-green/10 hover:bg-dock-green/20 text-dock-green border border-dock-green/25 backdrop-blur-md'
 }
 
 const sizes = {

@@ -36,14 +36,14 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`flex flex-col h-full bg-dock-surface border-r border-dock-border transition-all duration-200 ${
+      className={`glass-panel cosmic-edge flex flex-col h-full rounded-none border-y-0 border-l-0 transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-56'
       }`}
     >
       {/* Logo area */}
       <div className="flex items-center h-12 px-3 border-b border-dock-border drag-region">
         <div className="flex items-center gap-2 no-drag">
-          <div className="w-8 h-8 rounded-lg bg-dock-accent flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-dock-accent/90 shadow-[0_0_24px_rgba(34,211,238,0.35)] flex items-center justify-center">
             <Zap size={18} className="text-white" />
           </div>
           {!collapsed && (
@@ -64,8 +64,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? 'bg-dock-accent/10 text-dock-accent'
-                  : 'text-dock-muted hover:text-dock-text hover:bg-dock-card'
+                  ? 'bg-white/12 text-dock-accent border border-dock-accent/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+                  : 'text-dock-muted hover:text-dock-text hover:bg-white/10'
               }`
             }
           >

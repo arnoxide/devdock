@@ -91,11 +91,11 @@ export default function CommandPalette({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" onClick={onClose}>
       <div
-        className="w-full max-w-xl bg-dock-surface border border-dock-border rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-xl glass-panel cosmic-edge rounded-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-dock-border">
+        <div className="relative flex items-center gap-3 px-4 py-3 border-b border-dock-border">
           <Search size={16} className="text-dock-muted shrink-0" />
           <input
             ref={inputRef}
@@ -113,7 +113,7 @@ export default function CommandPalette({ open, onClose }: Props) {
         </div>
 
         {/* Results */}
-        <div className="max-h-80 overflow-y-auto py-1">
+        <div className="relative max-h-80 overflow-y-auto py-1">
           {results.length === 0 ? (
             <p className="text-sm text-dock-muted text-center py-8">No results for "{query}"</p>
           ) : (
@@ -123,7 +123,7 @@ export default function CommandPalette({ open, onClose }: Props) {
                 onClick={r.action}
                 onMouseEnter={() => setSelected(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  i === selected ? 'bg-dock-accent/10 text-dock-text' : 'text-dock-muted hover:bg-dock-card'
+                  i === selected ? 'bg-dock-accent/10 text-dock-text' : 'text-dock-muted hover:bg-white/10'
                 }`}
               >
                 <span className={i === selected ? 'text-dock-accent' : ''}>{r.icon}</span>
@@ -137,7 +137,7 @@ export default function CommandPalette({ open, onClose }: Props) {
           )}
         </div>
 
-        <div className="border-t border-dock-border px-4 py-2 flex gap-4 text-[10px] text-dock-muted">
+        <div className="relative border-t border-dock-border px-4 py-2 flex gap-4 text-[10px] text-dock-muted">
           <span><kbd className="border border-dock-border rounded px-1">↑↓</kbd> navigate</span>
           <span><kbd className="border border-dock-border rounded px-1">↵</kbd> open</span>
           <span><kbd className="border border-dock-border rounded px-1">Esc</kbd> close</span>
