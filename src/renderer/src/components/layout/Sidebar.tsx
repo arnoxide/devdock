@@ -7,6 +7,7 @@ import {
   Database,
   Network,
   Cpu,
+  HardDrive,
   ScrollText,
   Settings,
   ChevronLeft,
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/github', icon: Github, label: 'GitHub' },
   { to: '/ports', icon: Network, label: 'Ports' },
   { to: '/processes', icon: Cpu, label: 'Processes' },
+  { to: '/system', icon: HardDrive, label: 'System' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },
   { to: '/vault', icon: ShieldCheck, label: 'Security Vault' },
   { to: '/settings', icon: Settings, label: 'Settings' }

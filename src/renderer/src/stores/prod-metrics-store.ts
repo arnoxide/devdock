@@ -22,8 +22,8 @@ interface ProdMetricsStore {
 
   loadCredentials: () => Promise<void>
   setCredentials: (creds: PlatformCredentials) => Promise<void>
-  removeCredentials: (provider: PlatformProvider) => Promise<void>
-  testConnection: (provider: PlatformProvider) => Promise<ProviderStatus>
+  removeCredentials: (provider: PlatformProvider, accountId?: string) => Promise<void>
+  testConnection: (provider: PlatformProvider, accountId?: string) => Promise<ProviderStatus>
 
   loadServices: () => Promise<void>
   loadDeployments: (serviceId: string) => Promise<void>
@@ -73,26 +73,34 @@ export const useProdMetricsStore = create<ProdMetricsStore>((set) => ({
   setCredentials: async (creds: PlatformCredentials) => {
     await window.api.setProdCredentials(creds)
     set((s) => {
-      const idx = s.credentials.findIndex((c) => c.provider === creds.provider)
+      const credentialId = creds.id || `${creds.provider}:default`
+      const normalized = {
+        ...creds,
+        id: credentialId,
+        accountName: creds.accountName || 'Default account'
+      }
+      const idx = s.credentials.findIndex((c) => (c.id || `${c.provider}:default`) === credentialId)
       const updated = [...s.credentials]
-      if (idx >= 0) updated[idx] = creds
-      else updated.push(creds)
+      if (idx >= 0) updated[idx] = normalized
+      else updated.push(normalized)
       return { credentials: updated }
     })
   },
 
-  removeCredentials: async (provider: PlatformProvider) => {
-    await window.api.removeProdCredentials(provider)
+  removeCredentials: async (provider: PlatformProvider, accountId?: string) => {
+    const credentialId = accountId || `${provider}:default`
+    await window.api.removeProdCredentials(provider, accountId)
     set((s) => ({
-      credentials: s.credentials.filter((c) => c.provider !== provider),
-      services: s.services.filter((svc) => svc.provider !== provider)
+      credentials: s.credentials.filter((c) => (c.id || `${c.provider}:default`) !== credentialId),
+      services: s.services.filter((svc) => svc.accountId !== credentialId)
     }))
   },
 
-  testConnection: async (provider: PlatformProvider) => {
-    const status = (await window.api.testProdConnection(provider)) as ProviderStatus
+  testConnection: async (provider: PlatformProvider, accountId?: string) => {
+    const status = (await window.api.testProdConnection(provider, accountId)) as ProviderStatus
+    const statusKey = status.accountId || accountId || `${provider}:default`
     set((s) => ({
-      providerStatuses: { ...s.providerStatuses, [provider]: status }
+      providerStatuses: { ...s.providerStatuses, [statusKey]: status }
     }))
     return status
   },
@@ -170,8 +178,9 @@ export const useProdMetricsStore = create<ProdMetricsStore>((set) => ({
   },
 
   updateProviderStatus: (status: ProviderStatus) => {
+    const statusKey = status.accountId || `${status.provider}:default`
     set((s) => ({
-      providerStatuses: { ...s.providerStatuses, [status.provider]: status }
+      providerStatuses: { ...s.providerStatuses, [statusKey]: status }
     }))
   },
 

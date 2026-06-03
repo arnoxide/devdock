@@ -9,7 +9,8 @@ import {
 } from 'recharts'
 import { ProdResourceMetrics, PlatformProvider } from '../../../../shared/types'
 import Card, { CardBody, CardHeader } from '../ui/Card'
-import { Cloud } from 'lucide-react'
+import { Cloud, Cpu, HardDrive, MemoryStick, Server } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 interface ResourceChartsProps {
   metrics: ProdResourceMetrics[]
@@ -53,6 +54,33 @@ function GaugeBar({
   )
 }
 
+function UsageTile({
+  label,
+  value,
+  detail,
+  icon
+}: {
+  label: string
+  value: string
+  detail: string
+  icon: ReactNode
+}) {
+  return (
+    <Card>
+      <CardBody className="flex items-center gap-3 min-h-[82px]">
+        <div className="w-10 h-10 rounded-lg bg-dock-bg border border-dock-border flex items-center justify-center">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xl font-bold text-dock-text leading-tight">{value}</p>
+          <p className="text-xs text-dock-muted">{label}</p>
+          <p className="text-[10px] text-dock-muted/70 truncate">{detail}</p>
+        </div>
+      </CardBody>
+    </Card>
+  )
+}
+
 export default function ResourceCharts({ metrics, provider }: ResourceChartsProps) {
   const isServerless = provider === 'vercel'
   const latest = metrics.length > 0 ? metrics[metrics.length - 1] : null
@@ -76,6 +104,20 @@ export default function ResourceCharts({ metrics, provider }: ResourceChartsProp
     )
   }
 
+  if (metrics.length === 0) {
+    return (
+      <Card>
+        <CardBody className="py-12 text-center">
+          <Server size={30} className="mx-auto text-dock-muted mb-3" />
+          <p className="text-sm font-medium text-dock-text">No resource metrics yet</p>
+          <p className="text-xs text-dock-muted mt-1">
+            CPU, memory, and disk metrics will appear after monitoring collects samples.
+          </p>
+        </CardBody>
+      </Card>
+    )
+  }
+
   const chartData = metrics.map((m) => ({
     time: formatTime(m.timestamp),
     cpu: m.cpuPercent,
@@ -84,6 +126,45 @@ export default function ResourceCharts({ metrics, provider }: ResourceChartsProp
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-3">
+        <UsageTile
+          label="CPU"
+          value={latest?.cpuPercent !== null && latest?.cpuPercent !== undefined ? `${latest.cpuPercent.toFixed(1)}%` : '--'}
+          detail="Latest sample"
+          icon={<Cpu size={18} className="text-dock-accent" />}
+        />
+        <UsageTile
+          label="Memory"
+          value={latest?.memoryPercent !== null && latest?.memoryPercent !== undefined ? `${latest.memoryPercent.toFixed(1)}%` : '--'}
+          detail={
+            latest?.memoryUsedBytes && latest?.memoryLimitBytes
+              ? `${formatBytes(latest.memoryUsedBytes)} / ${formatBytes(latest.memoryLimitBytes)}`
+              : 'Latest sample'
+          }
+          icon={<MemoryStick size={18} className="text-dock-purple" />}
+        />
+        <UsageTile
+          label="Disk"
+          value={
+            latest?.diskUsedBytes && latest?.diskLimitBytes
+              ? `${Math.round((latest.diskUsedBytes / latest.diskLimitBytes) * 100)}%`
+              : '--'
+          }
+          detail={
+            latest?.diskUsedBytes && latest?.diskLimitBytes
+              ? `${formatBytes(latest.diskUsedBytes)} / ${formatBytes(latest.diskLimitBytes)}`
+              : 'Disk metrics'
+          }
+          icon={<HardDrive size={18} className="text-dock-green" />}
+        />
+        <UsageTile
+          label="Samples"
+          value={metrics.length.toLocaleString()}
+          detail="Collected points"
+          icon={<Server size={18} className="text-dock-muted" />}
+        />
+      </div>
+
       {/* Current gauges */}
       <Card>
         <CardHeader>

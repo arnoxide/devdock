@@ -32,16 +32,16 @@ export function registerProdMetricsHandlers(): void {
     productionMetrics.setCredentials(creds)
   })
 
-  ipcMain.handle(IPC.PROD_REMOVE_CREDENTIALS, async (_event, provider: PlatformProvider) => {
-    productionMetrics.removeCredentials(provider)
+  ipcMain.handle(IPC.PROD_REMOVE_CREDENTIALS, async (_event, provider: PlatformProvider, accountId?: string) => {
+    productionMetrics.removeCredentials(provider, accountId)
   })
 
   ipcMain.handle(IPC.PROD_GET_CREDENTIALS, async () => {
     return productionMetrics.getCredentials()
   })
 
-  ipcMain.handle(IPC.PROD_TEST_CONNECTION, async (_event, provider: PlatformProvider) => {
-    return productionMetrics.testConnection(provider)
+  ipcMain.handle(IPC.PROD_TEST_CONNECTION, async (_event, provider: PlatformProvider, accountId?: string) => {
+    return productionMetrics.testConnection(provider, accountId)
   })
 
   // Data fetching

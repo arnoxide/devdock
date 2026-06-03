@@ -240,7 +240,7 @@ export default function DashboardPage() {
           value={memoryPercent !== null ? `${memoryPercent}%` : '--'}
           icon={<MemoryStick size={20} className="text-dock-cyan" />}
           accent="bg-dock-cyan"
-          onClick={() => navigate('/processes')}
+          onClick={() => navigate('/system')}
           sublabel="View system details"
         />
       </div>

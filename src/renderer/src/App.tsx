@@ -10,6 +10,7 @@ import ApiMetricsPage from './pages/ApiMetricsPage'
 import DbMonitorPage from './pages/DbMonitorPage'
 import PortManagerPage from './pages/PortManagerPage'
 import ProcessDashboardPage from './pages/ProcessDashboardPage'
+import SystemPage from './pages/SystemPage'
 import LogViewerPage from './pages/LogViewerPage'
 import ProdMetricsPage from './pages/ProdMetricsPage'
 import GitHubPage from './pages/GitHubPage'
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/github" element={<PageBoundary><GitHubPage /></PageBoundary>} />
         <Route path="/ports" element={<PageBoundary><PortManagerPage /></PageBoundary>} />
         <Route path="/processes" element={<PageBoundary><ProcessDashboardPage /></PageBoundary>} />
+        <Route path="/system" element={<PageBoundary><SystemPage /></PageBoundary>} />
         <Route path="/logs" element={<PageBoundary><LogViewerPage /></PageBoundary>} />
         <Route path="/vault" element={<PageBoundary><SecurityVaultPage /></PageBoundary>} />
         <Route path="/settings" element={<PageBoundary><SettingsPage /></PageBoundary>} />

@@ -1,17 +1,97 @@
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
-import { GitStatus, GitFileStatus } from '../../shared/types'
+import { GitStatus, GitFileStatus, GitOperationResult } from '../../shared/types'
+import { githubService } from './github-service'
 
 const execAsync = promisify(exec)
 
 const MAX_BUFFER = 10 * 1024 * 1024 // 10MB
+const GIT_ENV = {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'never',
+    GIT_ASKPASS: 'echo',
+    SSH_ASKPASS: 'echo'
+}
 
 export class GitService {
+    private async runGit(projectPath: string, command: string, timeout = 30000, env?: NodeJS.ProcessEnv) {
+        return execAsync(command, {
+            cwd: projectPath,
+            maxBuffer: MAX_BUFFER,
+            timeout,
+            env: env || GIT_ENV
+        })
+    }
+
+    private isGitHubHttpsRemote(remoteUrl: string | null): boolean {
+        return Boolean(remoteUrl && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?$/i.test(remoteUrl.trim()))
+    }
+
+    private getGitHubTokenEnv(remoteUrl: string | null): NodeJS.ProcessEnv {
+        const token = this.isGitHubHttpsRemote(remoteUrl) ? githubService.getCredentials()?.token : undefined
+
+        if (!token) return GIT_ENV
+
+        return {
+            ...GIT_ENV,
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+            GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`
+        }
+    }
+
+    private async getNetworkGitEnv(projectPath: string): Promise<NodeJS.ProcessEnv> {
+        const remoteUrl = await this.getRemote(projectPath)
+        return this.getGitHubTokenEnv(remoteUrl)
+    }
+
+    private gitError(err: any, fallback: string): Error {
+        const message = String(err?.stderr || err?.stdout || err?.message || fallback).trim()
+
+        if (
+            message.includes('could not read Username') ||
+            message.includes('terminal prompts disabled') ||
+            message.includes('Authentication failed') ||
+            message.includes('GCM_INTERACTIVE') ||
+            message.includes('could not read Password')
+        ) {
+            return new Error('GIT_AUTH_REQUIRED')
+        }
+
+        return new Error(message || fallback)
+    }
+
+    private formatGitResult(title: string, stdout = '', stderr = ''): GitOperationResult {
+        const output = [stdout, stderr]
+            .map(text => text.trim())
+            .filter(Boolean)
+            .join('\n')
+            .trim()
+
+        if (output.includes('Already up to date.')) {
+            return {
+                title: 'Already up to date',
+                output
+            }
+        }
+
+        const changedLine = output
+            .split('\n')
+            .map(line => line.trim())
+            .find(line => /\d+\s+files?\s+changed/.test(line))
+
+        return {
+            title: changedLine || title,
+            output: output || title
+        }
+    }
+
     async isRepo(projectPath: string): Promise<boolean> {
         try {
             // Check if git is available and if we're in a work tree
-            const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            const { stdout } = await this.runGit(projectPath, 'git rev-parse --is-inside-work-tree')
             return stdout.trim() === 'true'
         } catch {
             // Fallback: check if .git directory exists
@@ -32,6 +112,7 @@ export class GitService {
                 isRepo: false,
                 branch: '',
                 hasRemote: false,
+                hasUpstream: false,
                 behind: 0,
                 ahead: 0,
                 staged: [],
@@ -44,11 +125,11 @@ export class GitService {
             // Get branch name - more robust way
             let branch = ''
             try {
-                const { stdout: bOut } = await execAsync('git branch --show-current', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                const { stdout: bOut } = await this.runGit(projectPath, 'git branch --show-current')
                 branch = bOut.trim()
 
                 if (!branch) {
-                    const { stdout: headOut } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    const { stdout: headOut } = await this.runGit(projectPath, 'git rev-parse --abbrev-ref HEAD')
                     branch = headOut.trim()
                 }
             } catch {
@@ -59,16 +140,18 @@ export class GitService {
             let hasRemote = false
             let hasUpstream = false
             try {
-                await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                await this.runGit(projectPath, 'git remote get-url origin')
                 hasRemote = true
             } catch {
                 hasRemote = false
             }
 
             // Check if the current branch tracks an upstream
+            let upstreamBranch = ''
             if (hasRemote && branch && branch !== 'HEAD (no commits)') {
                 try {
-                    await execAsync(`git rev-parse --abbrev-ref ${branch}@{u}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    const { stdout: upstreamOut } = await this.runGit(projectPath, 'git rev-parse --abbrev-ref --symbolic-full-name @{u}')
+                    upstreamBranch = upstreamOut.trim()
                     hasUpstream = true
                 } catch {
                     hasUpstream = false
@@ -78,7 +161,7 @@ export class GitService {
             // Get status short form
             let statusOut = ''
             try {
-                const { stdout } = await execAsync('git status --porcelain', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                const { stdout } = await this.runGit(projectPath, 'git status --porcelain')
                 statusOut = stdout
             } catch (err) {
                 console.warn('Git porcelain status failed:', err)
@@ -91,10 +174,11 @@ export class GitService {
                 if (hasUpstream) {
                     // Try fetch but don't fail if no remote exists
                     try {
-                        await execAsync('git fetch --timeout=5', { cwd: projectPath, maxBuffer: MAX_BUFFER }).catch(() => { })
+                        const env = await this.getNetworkGitEnv(projectPath)
+                        await this.runGit(projectPath, 'git fetch', 5000, env).catch(() => { })
                     } catch { }
 
-                    const { stdout: abOut } = await execAsync('git rev-list --left-right --count HEAD...@{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                    const { stdout: abOut } = await this.runGit(projectPath, 'git rev-list --left-right --count HEAD...@{u}')
                     const [a, b] = abOut.trim().split(/\s+/).map(Number)
                     ahead = a || 0
                     behind = b || 0
@@ -133,7 +217,7 @@ export class GitService {
 
             let lastCommit
             try {
-                const { stdout: logOut } = await execAsync('git log -1 --format="%H|%s|%an|%ai"', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                const { stdout: logOut } = await this.runGit(projectPath, 'git log -1 --format="%H|%s|%an|%ai"')
                 const parts = logOut.trim().split('|')
                 if (parts.length >= 4) {
                     const [hash, message, author, date] = parts
@@ -147,6 +231,8 @@ export class GitService {
                 isRepo: true,
                 branch: branch || 'master',
                 hasRemote,
+                hasUpstream,
+                upstreamBranch: upstreamBranch || undefined,
                 ahead,
                 behind,
                 staged,
@@ -161,6 +247,7 @@ export class GitService {
                 isRepo: true,
                 branch: 'unknown',
                 hasRemote: false,
+                hasUpstream: false,
                 ahead: 0,
                 behind: 0,
                 staged: [],
@@ -186,39 +273,81 @@ export class GitService {
         await this.ensureGitignore(projectPath)
 
         // Stage all changes
-        await execAsync('git add -A', { cwd: projectPath, maxBuffer: MAX_BUFFER })
-        await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        await this.runGit(projectPath, 'git add -A')
+        await this.runGit(projectPath, `git commit -m "${message.replace(/"/g, '\\"')}"`)
     }
 
     async push(projectPath: string): Promise<void> {
-        // Check if upstream is set; if not, push with -u to set it
+        // Check if upstream is set; if not, push with -u to set it.
+        let hasUpstream = false
         try {
-            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
-            await execAsync('git push', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            await this.runGit(projectPath, 'git rev-parse --abbrev-ref --symbolic-full-name @{u}')
+            hasUpstream = true
         } catch {
-            const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: projectPath, maxBuffer: MAX_BUFFER })
-            await execAsync(`git push -u origin ${branch.trim()}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            hasUpstream = false
+        }
+
+        if (hasUpstream) {
+            try {
+                const env = await this.getNetworkGitEnv(projectPath)
+                await this.runGit(projectPath, 'git push', 30000, env)
+            } catch (err: any) {
+                throw this.gitError(err, 'Git push failed.')
+            }
+            return
+        }
+
+        const { stdout: branch } = await this.runGit(projectPath, 'git rev-parse --abbrev-ref HEAD')
+        try {
+            const env = await this.getNetworkGitEnv(projectPath)
+            await this.runGit(projectPath, `git push -u origin ${branch.trim()}`, 30000, env)
+        } catch (err: any) {
+            throw this.gitError(err, 'Git push failed.')
         }
     }
 
-    async pull(projectPath: string): Promise<void> {
+    async pull(projectPath: string, options: { rebase?: boolean } = {}): Promise<GitOperationResult> {
         // Check if upstream is set before pulling
         try {
-            await execAsync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', { cwd: projectPath, maxBuffer: MAX_BUFFER })
-            await execAsync('git pull', { cwd: projectPath, maxBuffer: MAX_BUFFER })
-        } catch {
-            throw new Error('No upstream branch configured. Push first to set up tracking.')
+            await this.runGit(projectPath, 'git rev-parse --abbrev-ref --symbolic-full-name @{u}')
+        } catch (err: any) {
+            throw new Error('NO_UPSTREAM_BRANCH')
+        }
+
+        try {
+            const env = await this.getNetworkGitEnv(projectPath)
+            const command = options.rebase ? 'git pull --rebase' : 'git pull --no-rebase'
+            const { stdout, stderr } = await this.runGit(projectPath, command, 30000, env)
+            return this.formatGitResult(options.rebase ? 'Rebased onto remote changes' : 'Pulled latest changes', stdout, stderr)
+        } catch (err: any) {
+            throw this.gitError(err, 'Git pull failed.')
+        }
+    }
+
+    async sync(projectPath: string): Promise<GitOperationResult> {
+        try {
+            const pullResult = await this.pull(projectPath)
+            await this.push(projectPath)
+            return {
+                title: 'Sync complete',
+                output: pullResult.output
+            }
+        } catch (err: any) {
+            if (err?.message === 'NO_UPSTREAM_BRANCH') {
+                throw new Error('NO_UPSTREAM_BRANCH')
+            }
+            throw err
         }
     }
 
     async init(projectPath: string): Promise<void> {
-        await execAsync('git init', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        await this.runGit(projectPath, 'git init')
         await this.ensureGitignore(projectPath)
     }
 
     async add(projectPath: string, files: string[]): Promise<void> {
         const fileList = files.map(f => `"${f}"`).join(' ')
-        await execAsync(`git add ${fileList}`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        await this.runGit(projectPath, `git add ${fileList}`)
     }
 
     private async ensureGitignore(projectPath: string): Promise<void> {
@@ -249,12 +378,12 @@ export class GitService {
         try {
             // Check if origin already exists
             try {
-                await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                await this.runGit(projectPath, 'git remote get-url origin')
                 // If it exists, change it
-                await execAsync(`git remote set-url origin "${url}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                await this.runGit(projectPath, `git remote set-url origin "${url}"`)
             } catch {
                 // If it doesn't exist, add it
-                await execAsync(`git remote add origin "${url}"`, { cwd: projectPath, maxBuffer: MAX_BUFFER })
+                await this.runGit(projectPath, `git remote add origin "${url}"`)
             }
         } catch (err: any) {
             console.error('Failed to set remote:', err)
@@ -264,7 +393,7 @@ export class GitService {
 
     async getRemote(projectPath: string): Promise<string | null> {
         try {
-            const { stdout } = await execAsync('git remote get-url origin', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+            const { stdout } = await this.runGit(projectPath, 'git remote get-url origin')
             return stdout.trim()
         } catch {
             return null
@@ -272,7 +401,7 @@ export class GitService {
     }
 
     async getCurrentBranch(projectPath: string): Promise<string> {
-        const { stdout } = await execAsync('git branch --show-current', { cwd: projectPath, maxBuffer: MAX_BUFFER })
+        const { stdout } = await this.runGit(projectPath, 'git branch --show-current')
         const branch = stdout.trim()
         if (!branch) throw new Error('Create a branch before opening a pull request.')
         return branch

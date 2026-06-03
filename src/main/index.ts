@@ -11,14 +11,58 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
+function getResourcePath(...segments: string[]): string {
+  return is.dev
+    ? join(app.getAppPath(), 'resources', ...segments)
+    : join(process.resourcesPath, ...segments)
+}
+
+function createImageFromCandidates(candidates: string[]): Electron.NativeImage {
+  for (const candidate of candidates) {
+    const image = nativeImage.createFromPath(candidate)
+    if (!image.isEmpty()) return image
+  }
+
+  console.warn('[DevDock] Icon not found. Tried:', candidates.join(', '))
+  return nativeImage.createEmpty()
+}
+
+function createTrayIcon(): Electron.NativeImage {
+  const candidates = process.platform === 'darwin'
+    ? [
+        getResourcePath('icon_mac.png'),
+        getResourcePath('icons', '32x32.png'),
+        getResourcePath('icons', '16x16.png'),
+        getResourcePath('icon.png')
+      ]
+    : [
+        getResourcePath('icons', '32x32.png'),
+        getResourcePath('icons', '16x16.png'),
+        getResourcePath('icon.png')
+      ]
+
+  const icon = createImageFromCandidates(candidates)
+  if (process.platform === 'darwin' && !icon.isEmpty()) {
+    icon.setTemplateImage(true)
+  }
+
+  return icon.isEmpty() ? icon : icon.resize({ width: 16, height: 16 })
+}
+
+function createWindowIcon(): Electron.NativeImage {
+  return createImageFromCandidates([
+    getResourcePath('icon.png'),
+    getResourcePath('icons', '512x512.png'),
+    getResourcePath('icons', '256x256.png'),
+    getResourcePath('icon_1024.png')
+  ])
+}
+
 function createTray(): void {
-  const iconPath = is.dev
-    ? join(app.getAppPath(), 'resources/icon.png')
-    : join(process.resourcesPath, 'icon.png')
-  const icon = nativeImage.createFromPath(iconPath)
+  const icon = createTrayIcon()
 
   if (icon.isEmpty() && process.platform === 'darwin') {
-    // macOS requires a valid tray icon — skip tray if icon is missing, so this will fix it
+    // macOS requires a valid tray icon.
     console.warn('[DevDock] Tray icon not found, skipping tray creation')
     return
   }
@@ -51,11 +95,7 @@ function createTray(): void {
 
 function createWindow(): void {
   const bounds = store.get('windowBounds', { x: 100, y: 100, width: 1400, height: 900 })
-  const iconPath = is.dev
-    ? join(app.getAppPath(), 'resources/icon.png')
-    : join(process.resourcesPath, 'icon.png')
-
-  const icon = nativeImage.createFromPath(iconPath)
+  const icon = createWindowIcon()
 
   const isMac = process.platform === 'darwin'
 

@@ -208,6 +208,65 @@ export interface ProcessMetrics {
   timestamp: string
 }
 
+export type SystemFileCategory =
+  | 'code'
+  | 'images'
+  | 'video'
+  | 'audio'
+  | 'documents'
+  | 'archives'
+  | 'data'
+  | 'executables'
+  | 'logs'
+  | 'other'
+
+export interface SystemDiskInfo {
+  path: string
+  totalBytes: number
+  freeBytes: number
+  usedBytes: number
+  usedPercent: number
+}
+
+export interface SystemFileTypeSummary {
+  category: SystemFileCategory
+  extension: string
+  count: number
+  totalBytes: number
+  largestBytes: number
+}
+
+export interface SystemFileEntry {
+  path: string
+  name: string
+  extension: string
+  category: SystemFileCategory
+  sizeBytes: number
+  modifiedAt: string
+}
+
+export interface SystemScanRequest {
+  path?: string
+  maxFiles?: number
+  minSizeBytes?: number
+}
+
+export interface SystemScanResult {
+  rootPath: string
+  scannedFiles: number
+  skippedEntries: number
+  totalBytes: number
+  disk: SystemDiskInfo | null
+  categories: SystemFileTypeSummary[]
+  largestFiles: SystemFileEntry[]
+  scannedAt: string
+}
+
+export interface SystemDeleteResult {
+  deleted: string[]
+  failed: Array<{ path: string; error: string }>
+}
+
 // ==========================================
 // TERMINAL
 // ==========================================
@@ -274,7 +333,16 @@ export interface EnvTemplate {
 // PRODUCTION METRICS
 // ==========================================
 
-export type PlatformProvider = 'render' | 'railway' | 'vercel' | 'aws'
+export type PlatformProvider =
+  | 'render'
+  | 'railway'
+  | 'vercel'
+  | 'aws'
+  | 'netlify'
+  | 'cloudflare'
+  | 'fly'
+  | 'heroku'
+  | 'digitalocean'
 
 export type DeployStatus =
   | 'live'
@@ -289,7 +357,9 @@ export type DeployStatus =
 export type ProviderConnectionStatus = 'connected' | 'disconnected' | 'error' | 'checking'
 
 export interface PlatformCredentials {
+  id?: string
   provider: PlatformProvider
+  accountName?: string
   token: string
   accessKeyId?: string
   secretAccessKey?: string
@@ -300,6 +370,8 @@ export interface PlatformCredentials {
 
 export interface ProviderStatus {
   provider: PlatformProvider
+  accountId?: string
+  accountName?: string
   connectionStatus: ProviderConnectionStatus
   error: string | null
   lastCheckedAt: string
@@ -308,6 +380,9 @@ export interface ProviderStatus {
 
 export interface ProdService {
   id: string
+  originalId?: string
+  accountId?: string
+  accountName?: string
   provider: PlatformProvider
   name: string
   url: string | null
@@ -540,6 +615,8 @@ export interface GitStatus {
   isRepo: boolean
   branch: string
   hasRemote: boolean
+  hasUpstream: boolean
+  upstreamBranch?: string
   behind: number
   ahead: number
   staged: GitFileStatus[]
@@ -556,6 +633,11 @@ export interface GitStatus {
 export interface GitFileStatus {
   path: string
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'staged'
+}
+
+export interface GitOperationResult {
+  title: string
+  output: string
 }
 
 export interface GitCommitRequest {

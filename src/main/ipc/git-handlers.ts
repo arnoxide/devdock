@@ -54,9 +54,9 @@ export function registerGitHandlers(): void {
         return result
     })
 
-    ipcMain.handle(IPC.GIT_PULL, async (_event, projectId: string) => {
+    ipcMain.handle(IPC.GIT_PULL, async (_event, projectId: string, options?: { rebase?: boolean }) => {
         const projectPath = getProjectPath(projectId)
-        return gitService.pull(projectPath)
+        return gitService.pull(projectPath, options)
     })
 
     ipcMain.handle(IPC.GIT_INIT, async (_event, projectId: string) => {
@@ -76,8 +76,7 @@ export function registerGitHandlers(): void {
 
     ipcMain.handle(IPC.GIT_SYNC, async (_event, projectId: string) => {
         const projectPath = getProjectPath(projectId)
-        await gitService.pull(projectPath)
-        await gitService.push(projectPath)
+        return gitService.sync(projectPath)
     })
 
     ipcMain.handle(IPC.GIT_CREATE_PR, async (_event, request: GitCreatePullRequestRequest) => {

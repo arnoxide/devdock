@@ -7,7 +7,12 @@ const providerConfig: Record<
   render: { label: 'Render', letter: 'R', color: 'bg-dock-cyan text-white' },
   railway: { label: 'Railway', letter: 'Rw', color: 'bg-dock-purple text-white' },
   vercel: { label: 'Vercel', letter: 'V', color: 'bg-dock-text text-dock-bg' },
-  aws: { label: 'AWS', letter: 'A', color: 'bg-dock-orange text-white' }
+  aws: { label: 'AWS', letter: 'A', color: 'bg-dock-orange text-white' },
+  netlify: { label: 'Netlify', letter: 'N', color: 'bg-dock-green text-white' },
+  cloudflare: { label: 'Cloudflare', letter: 'Cf', color: 'bg-dock-yellow text-dock-bg' },
+  fly: { label: 'Fly.io', letter: 'F', color: 'bg-dock-cyan text-white' },
+  heroku: { label: 'Heroku', letter: 'H', color: 'bg-dock-purple text-white' },
+  digitalocean: { label: 'DigitalOcean', letter: 'Do', color: 'bg-dock-accent text-white' }
 }
 
 interface ProviderIconProps {

@@ -5,6 +5,7 @@ import Button from '../ui/Button'
 
 interface ProviderStatusCardProps {
   provider: PlatformProvider
+  accountName?: string
   status?: ProviderStatus
   hasCredentials: boolean
   onTest: () => void
@@ -13,6 +14,7 @@ interface ProviderStatusCardProps {
 
 export default function ProviderStatusCard({
   provider,
+  accountName,
   status,
   hasCredentials,
   onTest,
@@ -34,7 +36,9 @@ export default function ProviderStatusCard({
     >
       <ProviderIcon provider={provider} size="lg" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-dock-text">{getProviderLabel(provider)}</p>
+        <p className="text-sm font-medium text-dock-text truncate">
+          {accountName || getProviderLabel(provider)}
+        </p>
         <div className="flex items-center gap-2 text-[10px] text-dock-muted">
           {checking ? (
             <span className="flex items-center gap-1">

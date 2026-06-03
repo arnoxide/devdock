@@ -78,6 +78,9 @@ const api = {
   getSystemMetrics: () => ipcRenderer.invoke(IPC.SYSTEM_METRICS),
   startSystemMonitoring: () => ipcRenderer.invoke(IPC.SYSTEM_START_MONITORING),
   stopSystemMonitoring: () => ipcRenderer.invoke(IPC.SYSTEM_STOP_MONITORING),
+  scanSystemFiles: (request: unknown) => ipcRenderer.invoke(IPC.SYSTEM_SCAN_FILES, request),
+  deleteSystemFiles: (filePaths: string[]) => ipcRenderer.invoke(IPC.SYSTEM_DELETE_FILES, filePaths),
+  browseSystemScanPath: () => ipcRenderer.invoke(IPC.SYSTEM_BROWSE_SCAN_PATH),
 
   // Logs
   getLogs: (projectId: string, filter?: unknown) =>
@@ -96,11 +99,11 @@ const api = {
 
   // Production Metrics
   setProdCredentials: (creds: unknown) => ipcRenderer.invoke(IPC.PROD_SET_CREDENTIALS, creds),
-  removeProdCredentials: (provider: string) =>
-    ipcRenderer.invoke(IPC.PROD_REMOVE_CREDENTIALS, provider),
+  removeProdCredentials: (provider: string, accountId?: string) =>
+    ipcRenderer.invoke(IPC.PROD_REMOVE_CREDENTIALS, provider, accountId),
   getProdCredentials: () => ipcRenderer.invoke(IPC.PROD_GET_CREDENTIALS),
-  testProdConnection: (provider: string) =>
-    ipcRenderer.invoke(IPC.PROD_TEST_CONNECTION, provider),
+  testProdConnection: (provider: string, accountId?: string) =>
+    ipcRenderer.invoke(IPC.PROD_TEST_CONNECTION, provider, accountId),
   getProdServices: () => ipcRenderer.invoke(IPC.PROD_GET_SERVICES),
   getProdDeployments: (serviceId: string) =>
     ipcRenderer.invoke(IPC.PROD_GET_DEPLOYMENTS, serviceId),
@@ -149,7 +152,7 @@ const api = {
   gitCommit: (projectId: string, message: string) =>
     ipcRenderer.invoke(IPC.GIT_COMMIT, { projectId, message }),
   gitPush: (projectId: string) => ipcRenderer.invoke(IPC.GIT_PUSH, projectId),
-  gitPull: (projectId: string) => ipcRenderer.invoke(IPC.GIT_PULL, projectId),
+  gitPull: (projectId: string, options?: unknown) => ipcRenderer.invoke(IPC.GIT_PULL, projectId, options),
   gitInit: (projectId: string) => ipcRenderer.invoke(IPC.GIT_INIT, projectId),
   gitSync: (projectId: string) => ipcRenderer.invoke(IPC.GIT_SYNC, projectId),
   gitGetRemote: (projectId: string) => ipcRenderer.invoke(IPC.GIT_GET_REMOTE, projectId),

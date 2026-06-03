@@ -71,6 +71,9 @@ export const IPC = {
   SYSTEM_METRICS: 'system:metrics',
   SYSTEM_START_MONITORING: 'system:start-monitoring',
   SYSTEM_STOP_MONITORING: 'system:stop-monitoring',
+  SYSTEM_SCAN_FILES: 'system:scan-files',
+  SYSTEM_DELETE_FILES: 'system:delete-files',
+  SYSTEM_BROWSE_SCAN_PATH: 'system:browse-scan-path',
   // Main -> Renderer pushes
   SYSTEM_METRICS_UPDATE: 'system:metrics-update',
 
