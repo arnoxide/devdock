@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth-routes')
 const projectRoutes = require('./routes/project-routes')
 const filesRoutes = require('./routes/files-routes')
 const gitRoutes = require('./routes/git-routes')
+const dockRoutes = require('./routes/dock-routes')
 const { registerSocketHandlers } = require('./socket/terminal-socket')
 
 const PORT = process.env.PORT || 7777
@@ -28,8 +29,13 @@ app.use('/api/auth', authRoutes)
 app.use('/api/projects', projectRoutes)
 app.use('/api/files', filesRoutes)
 app.use('/api/git', gitRoutes)
+app.use('/api/dock', dockRoutes)
 
 app.get('/api/ping', (_req, res) => res.json({ ok: true, app: 'DevDock Remote' }))
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `API route not found: ${req.originalUrl}` })
+})
 
 // SPA fallback
 app.get('*path', (_req, res) => {

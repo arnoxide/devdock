@@ -6,6 +6,7 @@ import { registerAllHandlers } from './ipc'
 import { stopAllTunnels } from './services/tunnel-service'
 import { startRemoteServer, stopRemoteServer } from '../remote/server'
 import { initAutoUpdater } from './services/updater-service'
+import { productionMetrics } from './services/production-metrics'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -199,6 +200,9 @@ app.whenReady().then(() => {
   createWindow()
   if (mainWindow) initAutoUpdater(mainWindow)
   startRemoteServer().catch((err) => console.error('[DevDock Remote] Failed to start:', err))
+  if (store.get('productionMetrics')?.enabled) {
+    productionMetrics.start()
+  }
 
   try {
     createTray()

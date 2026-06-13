@@ -2,6 +2,7 @@ const { Router } = require('express')
 const { requireAuth } = require('../auth')
 const store = require('../store')
 const processManager = require('../process-manager')
+const { getDetectedRuntime } = require('../runtime-detector')
 
 const router = Router()
 router.use(requireAuth)
@@ -22,7 +23,7 @@ router.post('/:id/start', async (req, res) => {
   const project = projects.find((p) => p.id === req.params.id)
   if (!project) { res.status(404).json({ error: 'Not found' }); return }
   try {
-    await processManager.start(project.id, req.body.cmd || project.startCommand, project.path)
+    await processManager.start(project.id, req.body.command || req.body.cmd || project.startCommand, project.path)
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -47,9 +48,11 @@ router.post('/:id/restart', async (req, res) => {
   }
 })
 
-router.get('/:id/status', (req, res) => {
-  const status = processManager.getStatus(req.params.id)
-  res.json(status || { status: 'idle' })
+router.get('/:id/status', async (req, res) => {
+  const projects = store.get('projects', [])
+  const project = projects.find((p) => p.id === req.params.id)
+  if (!project) { res.json({ status: 'idle' }); return }
+  res.json(await getDetectedRuntime(project))
 })
 
 module.exports = router

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { requireAuth } from '../auth'
 import store from '../../main/store'
 import { processManager } from '../../main/services/process-manager'
+import { getDetectedRuntime } from '../runtime-detector'
 
 const router = Router()
 router.use(requireAuth)
@@ -54,9 +55,15 @@ router.post('/:id/restart', async (req: Request, res: Response) => {
 })
 
 // Get process status
-router.get('/:id/status', (req: Request, res: Response) => {
-  const status = processManager.getStatus(req.params.id)
-  res.json(status || { status: 'idle' })
+router.get('/:id/status', async (req: Request, res: Response) => {
+  const projects = store.get('projects', []) as any[]
+  const project = projects.find((p: any) => p.id === req.params.id)
+  if (!project) {
+    res.json({ status: 'idle' })
+    return
+  }
+  const runtime = await getDetectedRuntime(project)
+  res.json(runtime)
 })
 
 export default router

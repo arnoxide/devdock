@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "DevDock Mobile",
+    "slug": "devdock-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "devdock",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#10141c"
+      },
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

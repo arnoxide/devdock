@@ -8,6 +8,7 @@ import authRoutes from './routes/auth-routes'
 import projectRoutes from './routes/project-routes'
 import filesRoutes from './routes/files-routes'
 import gitRoutes from './routes/git-routes'
+import dockRoutes from './routes/dock-routes'
 import { registerSocketHandlers } from './socket/terminal-socket'
 
 const PORT = 7777
@@ -32,9 +33,14 @@ export async function startRemoteServer(): Promise<void> {
   app.use('/api/projects', projectRoutes)
   app.use('/api/files', filesRoutes)
   app.use('/api/git', gitRoutes)
+  app.use('/api/dock', dockRoutes)
 
   // Health check
   app.get('/api/ping', (_req, res) => res.json({ ok: true, app: 'DevDock Remote' }))
+
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.originalUrl}` })
+  })
 
   // Catch-all → serve web app (SPA routing)
   app.get('*path', (_req, res) => {

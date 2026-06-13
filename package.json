@@ -9,6 +9,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:remote": "cd remote-web && npm run build",
+    "dev:mobile": "cd mobile-app && npm run start",
+    "hub:start": "node hub/server.js",
     "dev:remote": "cd remote-web && npm run dev",
     "start": "electron-vite preview",
     "postinstall": "electron-rebuild -f -w node-pty",
