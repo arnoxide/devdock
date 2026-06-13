@@ -141,6 +141,11 @@ export const IPC = {
   SETTINGS_UPDATE: 'settings:update',
   SETTINGS_EXPORT: 'settings:export',
   SETTINGS_RESET: 'settings:reset',
+  CLOUD_SYNC_GET_STATUS: 'cloud-sync:get-status',
+  CLOUD_SYNC_UPDATE: 'cloud-sync:update',
+  CLOUD_SYNC_NOW: 'cloud-sync:now',
+  CLOUD_SYNC_START: 'cloud-sync:start',
+  CLOUD_SYNC_STOP: 'cloud-sync:stop',
 
   // Git operations
   GIT_STATUS: 'git:status',

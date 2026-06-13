@@ -21,6 +21,10 @@ function safeJson(value, fallback) {
   return value === undefined ? fallback : value
 }
 
+function jsonb(value, fallback = null) {
+  return JSON.stringify(value === undefined ? fallback : value)
+}
+
 async function upsertJsonSnapshot(table, conflictColumns, columns, values, updateSql) {
   const placeholders = values.map((_, index) => `$${index + 1}`).join(', ')
   await query(
@@ -95,8 +99,8 @@ async function main() {
     const { rows } = await query(
       `INSERT INTO agents (user_id, name, token_hash, metadata)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, name, created_at`,
-      [req.user.id, req.body?.name || 'Desktop Agent', hashToken(token), safeJson(req.body?.metadata, {})]
+      RETURNING id, name, created_at`,
+      [req.user.id, req.body?.name || 'Desktop Agent', hashToken(token), jsonb(req.body?.metadata, {})]
     )
     res.json({ agent: rows[0], token })
   })
@@ -106,7 +110,7 @@ async function main() {
       `UPDATE agents
        SET last_seen_at = now(), metadata = COALESCE($2, metadata), updated_at = now()
        WHERE id = $1`,
-      [req.agent.id, safeJson(req.body?.metadata, null)]
+      [req.agent.id, req.body?.metadata === undefined ? null : jsonb(req.body.metadata)]
     )
     res.json({ ok: true })
   })
@@ -132,7 +136,7 @@ async function main() {
           project.status || 'idle',
           project.port || null,
           !!project.external,
-          project.metadata || {},
+          jsonb(project.metadata, {}),
           new Date(),
         ],
         `agent_id = EXCLUDED.agent_id,
@@ -170,7 +174,7 @@ async function main() {
           runtime.port || null,
           !!runtime.external,
           runtime.processName || null,
-          item.output || [],
+          jsonb(item.output, []),
         ],
         `agent_id = EXCLUDED.agent_id,
          status = EXCLUDED.status,
@@ -191,7 +195,7 @@ async function main() {
         'git_snapshots',
         ['user_id', 'project_id'],
         ['user_id', 'project_id', 'agent_id', 'branch', 'changes', 'commits', 'error'],
-        [req.user.id, repo.projectId, req.agent.id, repo.branch || null, repo.changes || [], repo.commits || [], repo.error || null],
+        [req.user.id, repo.projectId, req.agent.id, repo.branch || null, jsonb(repo.changes, []), jsonb(repo.commits, []), repo.error || null],
         `agent_id = EXCLUDED.agent_id,
          branch = EXCLUDED.branch,
          changes = EXCLUDED.changes,
@@ -215,10 +219,10 @@ async function main() {
           service.provider,
           service.id,
           req.agent.id,
-          service,
-          item.deployments || [],
-          item.performance || [],
-          item.resources || [],
+          jsonb(service, {}),
+          jsonb(item.deployments, []),
+          jsonb(item.performance, []),
+          jsonb(item.resources, []),
           item.status || item.deployments?.[0]?.status || null,
         ],
         `agent_id = EXCLUDED.agent_id,
@@ -239,7 +243,7 @@ async function main() {
         'database_snapshots',
         ['user_id', 'connection_id'],
         ['user_id', 'connection_id', 'agent_id', 'name', 'type', 'status', 'tables', 'metadata'],
-        [req.user.id, db.id || db.connectionId, req.agent.id, db.name, db.type, db.status || 'unknown', db.tables || [], db.metadata || {}],
+        [req.user.id, db.id || db.connectionId, req.agent.id, db.name, db.type, db.status || 'unknown', jsonb(db.tables, []), jsonb(db.metadata, {})],
         `agent_id = EXCLUDED.agent_id,
          name = EXCLUDED.name,
          type = EXCLUDED.type,
@@ -316,7 +320,7 @@ async function main() {
       `INSERT INTO commands (user_id, agent_id, target_type, target_id, action, payload)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [req.user.id, agentId || null, targetType, targetId, action, payload]
+      [req.user.id, agentId || null, targetType, targetId, action, jsonb(payload, {})]
     )
     res.json({ command: rows[0] })
   })
@@ -347,13 +351,18 @@ async function main() {
        SET status = $1, result = $2, completed_at = now()
        WHERE id = $3 AND user_id = $4
        RETURNING *`,
-      [status, result, req.params.id, req.user.id]
+      [status, jsonb(result, {}), req.params.id, req.user.id]
     )
     res.json({ command: rows[0] || null })
   })
 
   app.use('/api', (req, res) => {
     res.status(404).json({ error: `API route not found: ${req.originalUrl}` })
+  })
+
+  app.use((err, req, res, _next) => {
+    console.error('[DevDock Hub] request failed:', req.method, req.originalUrl, err)
+    res.status(500).json({ error: err.message || 'Internal Server Error' })
   })
 
   app.listen(PORT, () => {

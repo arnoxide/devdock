@@ -605,6 +605,11 @@ export interface GlobalSettings {
   startMinimized: boolean
   closeToTray: boolean
   launchAtStartup: boolean
+  cloudSync?: {
+    enabled: boolean
+    hubUrl: string
+    intervalMs: number
+  }
   profile: UserProfile
 }
 // ==========================================

@@ -13,6 +13,11 @@ export const DEVELOPMENT_DEFAULTS: AppConfig = {
     startMinimized: false,
     closeToTray: false,
     launchAtStartup: false,
+    cloudSync: {
+      enabled: false,
+      hubUrl: '',
+      intervalMs: 60000
+    },
     profile: {
       displayName: '',
       username: '',

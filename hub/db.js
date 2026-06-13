@@ -8,9 +8,14 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is required')
 }
 
+const ssl =
+  process.env.PGSSL === 'require'
+    ? { rejectUnauthorized: false }
+    : false
+
 const pool = new Pool({
   connectionString,
-  ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+  ssl,
 })
 
 async function initDb() {

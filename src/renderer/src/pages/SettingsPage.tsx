@@ -6,7 +6,18 @@ import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
 import Button from '../components/ui/Button'
 import Dialog from '../components/ui/Dialog'
-import { AlertTriangle, Download, RotateCcw, GitBranch, Key, Copy, CheckCircle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Download, RotateCcw, GitBranch, Key, Copy, CheckCircle, RefreshCw, Cloud } from 'lucide-react'
+
+interface CloudSyncStatus {
+  enabled: boolean
+  running: boolean
+  configured: boolean
+  hubUrl: string
+  intervalMs: number
+  hasAgentToken: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+}
 
 export default function SettingsPage() {
   const settings = useSettingsStore((s) => s.settings)
@@ -26,11 +37,25 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [isTesting, setIsTesting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [cloudStatus, setCloudStatus] = useState<CloudSyncStatus | null>(null)
+  const [cloudHubUrl, setCloudHubUrl] = useState('')
+  const [cloudAgentToken, setCloudAgentToken] = useState('')
+  const [cloudIntervalMs, setCloudIntervalMs] = useState(60000)
+  const [cloudSaving, setCloudSaving] = useState(false)
+  const [cloudSyncing, setCloudSyncing] = useState(false)
 
   useEffect(() => {
     loadSettings()
     loadSshKey()
+    loadCloudSync()
   }, [])
+
+  const loadCloudSync = async () => {
+    const status = await window.api.getCloudSyncStatus()
+    setCloudStatus(status)
+    setCloudHubUrl(status.hubUrl || 'https://devdock-production.up.railway.app')
+    setCloudIntervalMs(status.intervalMs || 60000)
+  }
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -72,6 +97,34 @@ export default function SettingsPage() {
       navigator.clipboard.writeText(sshKey.publicKey)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const saveCloudSync = async (enabled?: boolean) => {
+    setCloudSaving(true)
+    try {
+      const status = await window.api.updateCloudSync({
+        enabled: enabled ?? cloudStatus?.enabled ?? false,
+        hubUrl: cloudHubUrl,
+        intervalMs: cloudIntervalMs,
+        agentToken: cloudAgentToken
+      })
+      setCloudStatus(status)
+      setCloudAgentToken('')
+    } finally {
+      setCloudSaving(false)
+    }
+  }
+
+  const syncCloudNow = async () => {
+    setCloudSyncing(true)
+    try {
+      const status = await window.api.syncCloudNow()
+      setCloudStatus(status)
+    } catch (err: any) {
+      setCloudStatus((old) => old ? { ...old, lastError: err.message || 'Sync failed' } : old)
+    } finally {
+      setCloudSyncing(false)
     }
   }
 
@@ -287,6 +340,103 @@ export default function SettingsPage() {
           </Card>
         </section>
       </div>
+
+      {/* Cloud Hub Sync */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="w-1.5 h-4 bg-dock-accent rounded-full" />
+          <h2 className="text-sm font-bold text-dock-text uppercase tracking-wider">Cloud Hub Sync</h2>
+        </div>
+
+        <Card>
+          <CardBody className="space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent">
+                  <Cloud size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-dock-text">Railway DevDock Hub</h3>
+                  <p className="text-xs text-dock-muted">
+                    Sync local workspace snapshots so mobile can see them when you are away.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => saveCloudSync(!cloudStatus?.enabled)}
+                disabled={cloudSaving}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${cloudStatus?.enabled ? 'bg-dock-accent shadow-lg shadow-dock-accent/20' : 'bg-dock-card border border-dock-border'
+                  }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${cloudStatus?.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-4">
+              <Input
+                label="Hub URL"
+                value={cloudHubUrl}
+                onChange={(e) => setCloudHubUrl(e.target.value)}
+                placeholder="https://devdock-production.up.railway.app"
+              />
+              <Input
+                label="Interval (ms)"
+                type="number"
+                value={cloudIntervalMs}
+                onChange={(e) => setCloudIntervalMs(parseInt(e.target.value) || 60000)}
+              />
+            </div>
+
+            <Input
+              label={cloudStatus?.hasAgentToken ? 'Agent Token (saved, paste only to replace)' : 'Agent Token'}
+              value={cloudAgentToken}
+              onChange={(e) => setCloudAgentToken(e.target.value)}
+              placeholder="ddag_..."
+              type="password"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => saveCloudSync()} disabled={cloudSaving}>
+                {cloudSaving ? 'Saving...' : 'Save Cloud Sync'}
+              </Button>
+              <Button variant="secondary" onClick={syncCloudNow} disabled={cloudSyncing || !cloudStatus?.configured}>
+                {cloudSyncing ? <RefreshCw size={14} className="animate-spin mr-2" /> : <RefreshCw size={14} className="mr-2" />}
+                Sync Now
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-lg border border-dock-border bg-dock-bg/40 p-3">
+                <p className="text-dock-muted uppercase tracking-wide text-[10px]">Status</p>
+                <p className={cloudStatus?.configured ? 'text-dock-green font-semibold mt-1' : 'text-dock-yellow font-semibold mt-1'}>
+                  {cloudStatus?.configured ? (cloudStatus.enabled ? 'Enabled' : 'Configured') : 'Needs token'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-dock-border bg-dock-bg/40 p-3">
+                <p className="text-dock-muted uppercase tracking-wide text-[10px]">Last Sync</p>
+                <p className="text-dock-text font-semibold mt-1">
+                  {cloudStatus?.lastSyncAt ? new Date(cloudStatus.lastSyncAt).toLocaleString() : 'Never'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-dock-border bg-dock-bg/40 p-3">
+                <p className="text-dock-muted uppercase tracking-wide text-[10px]">Agent Token</p>
+                <p className="text-dock-text font-semibold mt-1">
+                  {cloudStatus?.hasAgentToken ? 'Saved locally' : 'Missing'}
+                </p>
+              </div>
+            </div>
+
+            {cloudStatus?.lastError && (
+              <div className="rounded-lg border border-dock-red/20 bg-dock-red/10 p-3 text-xs text-dock-red">
+                {cloudStatus.lastError}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </section>
 
       {/* SSH & Git Configuration */}
       <section className="space-y-4 lg:col-span-2">

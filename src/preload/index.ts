@@ -146,6 +146,11 @@ const api = {
   updateSettings: (settings: unknown) => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, settings),
   exportSettings: () => ipcRenderer.invoke(IPC.SETTINGS_EXPORT),
   resetSettings: () => ipcRenderer.invoke(IPC.SETTINGS_RESET),
+  getCloudSyncStatus: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_GET_STATUS),
+  updateCloudSync: (config: unknown) => ipcRenderer.invoke(IPC.CLOUD_SYNC_UPDATE, config),
+  syncCloudNow: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_NOW),
+  startCloudSync: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_START),
+  stopCloudSync: () => ipcRenderer.invoke(IPC.CLOUD_SYNC_STOP),
 
   // Git
   gitStatus: (projectId: string) => ipcRenderer.invoke(IPC.GIT_STATUS, projectId),

@@ -4,6 +4,7 @@ import { IPC } from '../../shared/ipc-channels'
 import { GlobalSettings } from '../../shared/types'
 import store, { DEVELOPMENT_DEFAULTS } from '../store'
 import { checkForUpdates, installUpdate } from '../services/updater-service'
+import { cloudSyncService } from '../services/cloud-sync-service'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -67,6 +68,28 @@ export function registerSettingsHandlers(): void {
     return DEVELOPMENT_DEFAULTS.globalSettings
   })
 
+  ipcMain.handle(IPC.CLOUD_SYNC_GET_STATUS, async () => {
+    return cloudSyncService.getStatus()
+  })
+
+  ipcMain.handle(IPC.CLOUD_SYNC_UPDATE, async (_event, config: any) => {
+    return cloudSyncService.updateConfig(config)
+  })
+
+  ipcMain.handle(IPC.CLOUD_SYNC_NOW, async () => {
+    return cloudSyncService.syncNow()
+  })
+
+  ipcMain.handle(IPC.CLOUD_SYNC_START, async () => {
+    cloudSyncService.updateConfig({ enabled: true })
+    return cloudSyncService.getStatus()
+  })
+
+  ipcMain.handle(IPC.CLOUD_SYNC_STOP, async () => {
+    cloudSyncService.updateConfig({ enabled: false })
+    return cloudSyncService.getStatus()
+  })
+
   ipcMain.handle(IPC.REMOTE_GET_STATUS, async () => {
     const creds = store.get('remoteCredentials' as any) as any
     return {
@@ -81,6 +104,9 @@ export function registerSettingsHandlers(): void {
   // Sync startup setting on app init
   const saved = store.get('globalSettings')
   applyLaunchAtStartup(!!(saved as GlobalSettings).launchAtStartup)
+  if ((saved as GlobalSettings).cloudSync?.enabled) {
+    cloudSyncService.start()
+  }
 
   ipcMain.handle(IPC.REMOTE_SET_CREDENTIALS, async (_e, username: string, password: string) => {
     if (!username?.trim() || !password?.trim()) throw new Error('Username and password are required')
