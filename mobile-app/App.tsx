@@ -21,6 +21,7 @@ import { io, Socket } from 'socket.io-client'
 
 type Screen = 'boot' | 'auth' | 'dashboard' | 'project' | 'processes' | 'production' | 'databases' | 'git' | 'vault' | 'settings'
 type ProjectTab = 'output' | 'terminal' | 'git' | 'files'
+type ConnectionMode = 'local' | 'cloud'
 
 type Project = {
   id: string
@@ -57,6 +58,7 @@ type DatabaseConnection = {
   type: string
   hasConnectionString?: boolean
   status?: { status: string; error?: string | null; latencyMs?: number | null; serverVersion?: string | null }
+  tables?: DbTable[]
 }
 
 type DbTable = {
@@ -119,10 +121,14 @@ type FileNode = {
   children?: FileNode[]
 }
 
+const MODE_KEY = 'devdock.mobile.mode'
 const HOST_KEY = 'devdock.mobile.host'
+const CLOUD_HOST_KEY = 'devdock.mobile.cloud_host'
 const ACCESS_KEY = 'devdock.mobile.access'
+const CLOUD_ACCESS_KEY = 'devdock.mobile.cloud_access'
 const REFRESH_KEY = 'devdock.mobile.refresh'
 const DEFAULT_HOST = 'http://localhost:7777'
+const DEFAULT_CLOUD_HOST = 'https://devdock-production.up.railway.app'
 
 const palette = {
   bg: '#020307',
@@ -150,24 +156,37 @@ export default function App() {
 function AppContent() {
   const insets = useSafeAreaInsets()
   const [screen, setScreen] = useState<Screen>('boot')
+  const [mode, setModeState] = useState<ConnectionMode>('local')
   const [host, setHostState] = useState(DEFAULT_HOST)
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [refreshToken, setRefreshTokenState] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
-  const api = useMemo(() => createApi(host, accessToken, refreshToken, setAccessToken, setRefreshToken, signOut), [host, accessToken, refreshToken])
+  const api = useMemo(() => createApi(mode, host, accessToken, refreshToken, setAccessToken, setRefreshToken, signOut), [mode, host, accessToken, refreshToken])
 
   async function setHost(value: string) {
     const clean = value.trim().replace(/\/+$/, '')
     setHostState(clean)
-    await AsyncStorage.setItem(HOST_KEY, clean)
+    await AsyncStorage.setItem(mode === 'cloud' ? CLOUD_HOST_KEY : HOST_KEY, clean)
+  }
+
+  async function setMode(nextMode: ConnectionMode) {
+    setModeState(nextMode)
+    await AsyncStorage.setItem(MODE_KEY, nextMode)
+    const nextHost = await AsyncStorage.getItem(nextMode === 'cloud' ? CLOUD_HOST_KEY : HOST_KEY)
+    const nextAccess = await SecureStore.getItemAsync(nextMode === 'cloud' ? CLOUD_ACCESS_KEY : ACCESS_KEY)
+    const nextRefresh = nextMode === 'local' ? await SecureStore.getItemAsync(REFRESH_KEY) : null
+    setHostState(nextHost || (nextMode === 'cloud' ? DEFAULT_CLOUD_HOST : DEFAULT_HOST))
+    setAccessTokenState(nextAccess)
+    setRefreshTokenState(nextRefresh)
   }
 
   async function setAccessToken(token: string | null) {
     setAccessTokenState(token)
-    if (token) await SecureStore.setItemAsync(ACCESS_KEY, token)
-    else await SecureStore.deleteItemAsync(ACCESS_KEY)
+    const key = mode === 'cloud' ? CLOUD_ACCESS_KEY : ACCESS_KEY
+    if (token) await SecureStore.setItemAsync(key, token)
+    else await SecureStore.deleteItemAsync(key)
   }
 
   async function setRefreshToken(token: string | null) {
@@ -201,10 +220,12 @@ function AppContent() {
 
   useEffect(() => {
     async function boot() {
-      const savedHost = await AsyncStorage.getItem(HOST_KEY)
-      const savedAccess = await SecureStore.getItemAsync(ACCESS_KEY)
-      const savedRefresh = await SecureStore.getItemAsync(REFRESH_KEY)
-      if (savedHost) setHostState(savedHost)
+      const savedMode = ((await AsyncStorage.getItem(MODE_KEY)) as ConnectionMode | null) || 'local'
+      const savedHost = await AsyncStorage.getItem(savedMode === 'cloud' ? CLOUD_HOST_KEY : HOST_KEY)
+      const savedAccess = await SecureStore.getItemAsync(savedMode === 'cloud' ? CLOUD_ACCESS_KEY : ACCESS_KEY)
+      const savedRefresh = savedMode === 'local' ? await SecureStore.getItemAsync(REFRESH_KEY) : null
+      setModeState(savedMode)
+      setHostState(savedHost || (savedMode === 'cloud' ? DEFAULT_CLOUD_HOST : DEFAULT_HOST))
       if (savedAccess) setAccessTokenState(savedAccess)
       if (savedRefresh) setRefreshTokenState(savedRefresh)
       setScreen(savedAccess ? 'dashboard' : 'auth')
@@ -231,11 +252,13 @@ function AppContent() {
       {screen === 'auth' && (
         <AuthScreen
           host={host}
+          mode={mode}
           setHost={setHost}
+          setMode={setMode}
           api={api}
           onAuthed={async (tokens) => {
             await setAccessToken(tokens.accessToken)
-            await setRefreshToken(tokens.refreshToken)
+            await setRefreshToken(tokens.refreshToken || null)
             setScreen('dashboard')
           }}
         />
@@ -243,6 +266,7 @@ function AppContent() {
       {screen === 'dashboard' && (
         <DashboardScreen
           host={host}
+          mode={mode}
           projects={projects}
           refresh={loadProjects}
           openProject={openProject}
@@ -255,11 +279,12 @@ function AppContent() {
       {screen === 'databases' && <DatabasesScreen api={api} navigate={setScreen} />}
       {screen === 'git' && <GitOverviewScreen api={api} navigate={setScreen} openProject={openProject} />}
       {screen === 'vault' && <VaultScreen api={api} navigate={setScreen} />}
-      {screen === 'settings' && <SettingsScreen api={api} host={host} navigate={setScreen} signOut={signOut} />}
+      {screen === 'settings' && <SettingsScreen api={api} host={host} mode={mode} navigate={setScreen} signOut={signOut} />}
       {screen === 'project' && selectedProject && (
         <ProjectScreen
           api={api}
           host={host}
+          mode={mode}
           token={accessToken}
           initialProject={selectedProject}
           goBack={() => setScreen('dashboard')}
@@ -271,6 +296,7 @@ function AppContent() {
 }
 
 function createApi(
+  mode: ConnectionMode,
   host: string,
   accessToken: string | null,
   refreshToken: string | null,
@@ -301,7 +327,7 @@ function createApi(
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
     const res = await fetchWithTimeout(`${host}${path}`, { ...options, headers }, path.includes('/databases/') ? 12000 : 15000)
 
-    if (res.status === 401 && retry && refreshToken) {
+    if (mode === 'local' && res.status === 401 && retry && refreshToken) {
       const refreshRes = await fetchWithTimeout(`${host}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -364,7 +390,155 @@ function createApi(
     return data as T
   }
 
+  async function command(targetType: string, targetId: string | null, action: string, payload: Record<string, unknown> = {}) {
+    return json('/api/commands', { method: 'POST', body: JSON.stringify({ targetType, targetId, action, payload }) })
+  }
+
+  async function cloudProjects() {
+    const data = await json<{ projects: any[] }>('/api/projects')
+    return { projects: (data.projects || []).map(normalizeCloudProject) }
+  }
+
+  async function cloudProcesses() {
+    const data = await json<{ processes: any[] }>('/api/processes')
+    return {
+      processes: (data.processes || []).map((row) => {
+        const project = normalizeCloudProject({
+          id: row.project_id,
+          name: row.name || row.project_id,
+          path: row.path,
+          type: row.type,
+          status: row.status,
+          port: row.port,
+        })
+        return {
+          project,
+          runtime: {
+            projectId: row.project_id,
+            status: row.status || 'idle',
+            pid: row.pid || null,
+            port: row.port || null,
+            startedAt: row.created_at || null,
+            uptime: 0,
+          },
+          output: Array.isArray(row.output) ? row.output : [],
+        }
+      }),
+    }
+  }
+
+  async function cloudGit(projectId?: string) {
+    const data = await json<{ repos: any[] }>('/api/git')
+    const repos = data.repos || []
+    if (!projectId) return repos
+    const repo = repos.find((item) => item.project_id === projectId)
+    if (!repo) throw new Error('No cloud git snapshot for this project yet. Sync DevDock on desktop once.')
+    return {
+      branch: repo.branch,
+      changes: Array.isArray(repo.changes) ? repo.changes.map(normalizeGitChange) : [],
+      files: Array.isArray(repo.changes) ? repo.changes.map(normalizeGitChange) : [],
+      commits: Array.isArray(repo.commits) ? repo.commits : [],
+      error: repo.error,
+      updatedAt: repo.updated_at,
+    }
+  }
+
+  async function cloudProduction() {
+    const data = await json<{ services: any[] }>('/api/production')
+    const services: ProdService[] = []
+    const deploymentsByService: Record<string, ProdDeployment[]> = {}
+    for (const row of data.services || []) {
+      const service = row.service || {}
+      const id = row.service_id || service.id
+      services.push({
+        id,
+        provider: row.provider || service.provider || 'cloud',
+        name: service.name || id,
+        url: service.url || null,
+        type: service.type || 'service',
+        region: service.region || null,
+        accountName: service.accountName,
+      })
+      deploymentsByService[id] = Array.isArray(row.deployments) ? row.deployments : []
+    }
+    return { settings: {}, credentials: [], providerStatuses: {}, services, deploymentsByService }
+  }
+
+  async function cloudDatabases() {
+    const data = await json<{ databases: any[] }>('/api/databases')
+    return {
+      connections: (data.databases || []).map((row) => ({
+        id: row.connection_id,
+        name: row.name || row.connection_id,
+        type: row.type || 'database',
+        status: { status: row.status || 'unknown' },
+        tables: Array.isArray(row.tables) ? row.tables : [],
+      })),
+    }
+  }
+
+  if (mode === 'cloud') {
+    return {
+      mode,
+      ping: () => publicJson<{ ok: boolean }>('/health'),
+      authStatus: async () => ({ configured: true, hasUser: true }),
+      setup: async (email: string, password: string) => {
+        const data = await publicJson<{ token: string }>('/api/auth/register', { email, password, displayName: email.split('@')[0] || 'DevDock' })
+        return { accessToken: data.token, refreshToken: '' }
+      },
+      login: async (email: string, password: string) => {
+        const data = await publicJson<{ token: string }>('/api/auth/login', { email, password })
+        return { accessToken: data.token, refreshToken: '' }
+      },
+      projects: cloudProjects,
+      projectStatus: async (id: string) => {
+        const processes = await cloudProcesses()
+        const item = processes.processes.find((process) => process.project.id === id)
+        if (item) return { ...item.runtime, status: item.runtime.status, port: item.runtime.port, output: item.output }
+        const data = await cloudProjects()
+        const project = data.projects.find((candidate) => candidate.id === id)
+        return { status: project?.status || 'idle', port: project?.port || null, output: [] }
+      },
+      startProject: (id: string, commandText?: string) => command('project', id, 'start', commandText ? { command: commandText } : {}),
+      stopProject: (id: string) => command('project', id, 'stop'),
+      restartProject: (id: string) => command('project', id, 'restart'),
+      gitStatus: (id: string) => cloudGit(id),
+      gitStage: async () => unsupportedCloud('staging files'),
+      gitCommit: async () => unsupportedCloud('committing changes'),
+      gitPush: (id: string) => command('git', id, 'push'),
+      gitPull: (id: string) => command('git', id, 'pull'),
+      fileTree: async () => unsupportedCloud('file browsing'),
+      readFile: async () => unsupportedCloud('file reading'),
+      writeFile: async () => unsupportedCloud('file editing'),
+      dockProcesses: cloudProcesses,
+      dockDatabases: cloudDatabases,
+      testDatabase: async (id: string) => ({ status: 'snapshot', connectionId: id }),
+      dbTables: async (id: string) => {
+        const data = await cloudDatabases()
+        const connection = data.connections.find((item) => item.id === id)
+        return { tables: connection?.tables || [] }
+      },
+      dbTableData: async (id: string, table: string, page = 1) => ({
+        connectionId: id,
+        tableName: table,
+        columns: [],
+        rows: [],
+        totalRows: 0,
+        page,
+        pageSize: 25,
+        executionTimeMs: 0,
+        error: 'Cloud Hub stores database metadata only right now. Use local mode for live table rows.',
+      }),
+      dockProduction: cloudProduction,
+      refreshProduction: async () => ({ ok: true, ...(await cloudProduction()) }),
+      dockVault: async () => ({ vaults: [], passwords: [] }),
+      dockSettings: async () => ({ settings: {}, remote: { configured: true, username: 'Cloud Hub' } }),
+      updateSettings: async () => unsupportedCloud('editing settings'),
+    }
+  }
+
   return {
+    mode,
     ping: () => publicJson<{ ok: boolean }>('/api/ping'),
     authStatus: () => publicJson<{ configured?: boolean; hasUser?: boolean }>('/api/auth/status'),
     setup: (username: string, password: string) => publicJson<{ accessToken: string; refreshToken: string }>('/api/auth/setup', { username, password }),
@@ -406,23 +580,32 @@ function BootScreen() {
   )
 }
 
-function AuthScreen({ host, setHost, api, onAuthed }: { host: string; setHost: (value: string) => Promise<void>; api: Api; onAuthed: (tokens: { accessToken: string; refreshToken: string }) => void }) {
+function AuthScreen({ host, mode, setHost, setMode, api, onAuthed }: { host: string; mode: ConnectionMode; setHost: (value: string) => Promise<void>; setMode: (mode: ConnectionMode) => Promise<void>; api: Api; onAuthed: (tokens: { accessToken: string; refreshToken?: string }) => void }) {
   const [hostDraft, setHostDraft] = useState(host)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [setupMode, setSetupMode] = useState(false)
   const [checking, setChecking] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('Use your computer LAN address, for example http://192.168.1.20:7777')
+  const [message, setMessage] = useState(mode === 'cloud' ? 'Use your Railway Hub login to see synced snapshots away from your PC.' : 'Use your computer LAN address, for example http://192.168.1.20:7777')
+
+  useEffect(() => {
+    setHostDraft(host)
+    setMessage(mode === 'cloud' ? 'Use your Railway Hub login to see synced snapshots away from your PC.' : 'Use your computer LAN address, for example http://192.168.1.20:7777')
+  }, [host, mode])
 
   async function checkServer() {
     setChecking(true)
     try {
       await setHost(hostDraft)
       await api.ping()
-      const status = await api.authStatus()
-      setSetupMode(!(status.configured ?? status.hasUser))
-      setMessage((status.configured ?? status.hasUser) ? 'Server found. Log in to control DevDock.' : 'Server found. Create the remote account first.')
+      if (mode === 'cloud') {
+        setMessage('Cloud Hub found. Log in with your Railway Hub account.')
+      } else {
+        const status = await api.authStatus()
+        setSetupMode(!(status.configured ?? status.hasUser))
+        setMessage((status.configured ?? status.hasUser) ? 'Server found. Log in to control DevDock.' : 'Server found. Create the remote account first.')
+      }
     } catch (err: any) {
       setMessage(err.message || 'Could not reach DevDock')
     } finally {
@@ -432,7 +615,7 @@ function AuthScreen({ host, setHost, api, onAuthed }: { host: string; setHost: (
 
   async function submit() {
     if (!username.trim() || !password) {
-      setMessage('Username and password are required.')
+      setMessage(mode === 'cloud' ? 'Email and password are required.' : 'Username and password are required.')
       return
     }
     setBusy(true)
@@ -456,12 +639,21 @@ function AuthScreen({ host, setHost, api, onAuthed }: { host: string; setHost: (
         <Text style={styles.title}>DevDock</Text>
         <Text style={styles.subtitle}>Phone control for your development dock.</Text>
 
+        <View style={styles.modeRow}>
+          <Pressable onPress={() => setMode('cloud')} style={[styles.segment, mode === 'cloud' && styles.segmentActive]}>
+            <Text style={[styles.segmentText, mode === 'cloud' && styles.segmentTextActive]}>Cloud Hub</Text>
+          </Pressable>
+          <Pressable onPress={() => setMode('local')} style={[styles.segment, mode === 'local' && styles.segmentActive]}>
+            <Text style={[styles.segmentText, mode === 'local' && styles.segmentTextActive]}>Local</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.formBlock}>
-          <Text style={styles.label}>Server</Text>
-          <TextInput value={hostDraft} onChangeText={setHostDraft} autoCapitalize="none" keyboardType="url" placeholder={DEFAULT_HOST} placeholderTextColor={palette.muted} style={styles.input} />
+          <Text style={styles.label}>{mode === 'cloud' ? 'Hub URL' : 'Server'}</Text>
+          <TextInput value={hostDraft} onChangeText={setHostDraft} autoCapitalize="none" keyboardType="url" placeholder={mode === 'cloud' ? DEFAULT_CLOUD_HOST : DEFAULT_HOST} placeholderTextColor={palette.muted} style={styles.input} />
           <Pressable style={styles.secondaryButton} onPress={checkServer} disabled={checking}>
             {checking ? <ActivityIndicator color={palette.text} /> : <Ionicons name="wifi" size={18} color={palette.text} />}
-            <Text style={styles.buttonText}>Check Server</Text>
+            <Text style={styles.buttonText}>{mode === 'cloud' ? 'Check Hub' : 'Check Server'}</Text>
           </Pressable>
         </View>
 
@@ -471,10 +663,10 @@ function AuthScreen({ host, setHost, api, onAuthed }: { host: string; setHost: (
               <Text style={[styles.segmentText, !setupMode && styles.segmentTextActive]}>Login</Text>
             </Pressable>
             <Pressable onPress={() => setSetupMode(true)} style={[styles.segment, setupMode && styles.segmentActive]}>
-              <Text style={[styles.segmentText, setupMode && styles.segmentTextActive]}>Setup</Text>
+              <Text style={[styles.segmentText, setupMode && styles.segmentTextActive]}>{mode === 'cloud' ? 'Register' : 'Setup'}</Text>
             </Pressable>
           </View>
-          <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="Username" placeholderTextColor={palette.muted} style={styles.input} />
+          <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" keyboardType={mode === 'cloud' ? 'email-address' : 'default'} placeholder={mode === 'cloud' ? 'Email' : 'Username'} placeholderTextColor={palette.muted} style={styles.input} />
           <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder="Password" placeholderTextColor={palette.muted} style={styles.input} />
           <Pressable style={styles.primaryButton} onPress={submit} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name={setupMode ? 'person-add' : 'log-in'} size={18} color="#fff" />}
@@ -488,7 +680,7 @@ function AuthScreen({ host, setHost, api, onAuthed }: { host: string; setHost: (
   )
 }
 
-function DashboardScreen({ host, projects, refresh, openProject, signOut, navigate }: { host: string; projects: Project[]; refresh: () => Promise<void>; openProject: (project: Project) => void; signOut: () => void; navigate: (screen: Screen) => void }) {
+function DashboardScreen({ host, mode, projects, refresh, openProject, signOut, navigate }: { host: string; mode: ConnectionMode; projects: Project[]; refresh: () => Promise<void>; openProject: (project: Project) => void; signOut: () => void; navigate: (screen: Screen) => void }) {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
@@ -538,7 +730,7 @@ function DashboardScreen({ host, projects, refresh, openProject, signOut, naviga
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>DevDock</Text>
-          <Text style={styles.headerSub}>{host}</Text>
+          <Text style={styles.headerSub}>{mode === 'cloud' ? 'Cloud Hub' : 'Local'} · {host}</Text>
         </View>
         <Pressable style={styles.iconButton} onPress={signOut}>
           <Ionicons name="log-out-outline" size={22} color={palette.text} />
@@ -1126,7 +1318,7 @@ function VaultScreen({ api, navigate }: { api: Api; navigate: (screen: Screen) =
   )
 }
 
-function SettingsScreen({ api, host, navigate, signOut }: { api: Api; host: string; navigate: (screen: Screen) => void; signOut: () => void }) {
+function SettingsScreen({ api, host, mode, navigate, signOut }: { api: Api; host: string; mode: ConnectionMode; navigate: (screen: Screen) => void; signOut: () => void }) {
   const [data, setData] = useState<{ settings: any; remote: { configured: boolean; username: string } } | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -1162,20 +1354,21 @@ function SettingsScreen({ api, host, navigate, signOut }: { api: Api; host: stri
 
   return (
     <View style={styles.flex}>
-      <SectionHeader title="Settings" subtitle={host} icon="settings" action={<Pressable style={styles.iconButton} onPress={signOut}><Ionicons name="log-out-outline" size={22} color={palette.text} /></Pressable>} />
+      <SectionHeader title="Settings" subtitle={`${mode === 'cloud' ? 'Cloud Hub' : 'Local'} · ${host}`} icon="settings" action={<Pressable style={styles.iconButton} onPress={signOut}><Ionicons name="log-out-outline" size={22} color={palette.text} /></Pressable>} />
       <ScrollView contentContainerStyle={styles.dashboardList}>
         {error ? <NoticePanel text={error} /> : null}
         <View style={styles.projectCard}>
           <Text style={styles.label}>Remote Access</Text>
           <Text style={styles.projectName}>{data?.remote.configured ? data.remote.username : 'Not configured'}</Text>
-          <Text style={styles.projectPath}>Server credentials are managed on the DevDock host.</Text>
+          <Text style={styles.projectPath}>{mode === 'cloud' ? 'Cloud snapshots are managed by the Railway Hub and desktop sync agent.' : 'Server credentials are managed on the DevDock host.'}</Text>
         </View>
-        {['apiMonitorEnabled', 'startMinimized', 'closeToTray', 'launchAtStartup'].map((key) => (
+        {mode === 'cloud' ? <NoticePanel text="Cloud mode shows the latest synced state. Switch to local mode when you are on the same network and need terminal, file editing, or live table rows." /> : null}
+        {mode === 'local' ? ['apiMonitorEnabled', 'startMinimized', 'closeToTray', 'launchAtStartup'].map((key) => (
           <Pressable key={key} style={styles.fileRow} onPress={() => toggle(key)}>
             {saving === key ? <ActivityIndicator color={palette.blue} /> : <Ionicons name={data?.settings?.[key] ? 'toggle' : 'toggle-outline'} size={24} color={data?.settings?.[key] ? palette.blue : palette.muted} />}
             <Text style={styles.fileName}>{labelFromKey(key)}</Text>
           </Pressable>
-        ))}
+        )) : null}
       </ScrollView>
       <DockNav active="settings" navigate={navigate} />
     </View>
@@ -1243,6 +1436,34 @@ function isRouteUnavailable(err: unknown): boolean {
   return message.includes('Remote API route is not available yet') || message.includes('API route not found')
 }
 
+function normalizeCloudProject(row: any): Project {
+  return {
+    id: String(row.id || row.project_id || ''),
+    name: row.name || row.id || row.project_id || 'Project',
+    path: row.path || undefined,
+    type: row.type || undefined,
+    status: row.runtime_status || row.status || 'idle',
+    port: row.runtime_port || row.port || undefined,
+    isGroup: !!row.is_group,
+    parentId: row.parent_id || undefined,
+    color: row.color || undefined,
+    startCommand: row.start_command || undefined,
+  }
+}
+
+function normalizeGitChange(change: any): GitFile {
+  if (typeof change === 'string') return { path: change, status: 'M' }
+  return {
+    path: change.path || change.file || change.name || 'unknown',
+    status: change.status || change.index || change.workingTree || '?',
+    staged: !!change.staged,
+  }
+}
+
+function unsupportedCloud(action: string): never {
+  throw new Error(`Cloud mode does not support ${action} yet. Switch to local mode on the same network for this action.`)
+}
+
 function normalizePath(path?: string): string {
   return (path || '').replace(/\/+$/, '')
 }
@@ -1261,7 +1482,7 @@ function findPathGroup(project: Project, groups: Project[]): Project | null {
   return matches[0] || null
 }
 
-function ProjectScreen({ api, host, token, initialProject, goBack, refreshProjects }: { api: Api; host: string; token: string | null; initialProject: Project; goBack: () => void; refreshProjects: () => Promise<void> }) {
+function ProjectScreen({ api, host, mode, token, initialProject, goBack, refreshProjects }: { api: Api; host: string; mode: ConnectionMode; token: string | null; initialProject: Project; goBack: () => void; refreshProjects: () => Promise<void> }) {
   const [project, setProject] = useState(initialProject)
   const [tab, setTab] = useState<ProjectTab>('output')
   const [status, setStatus] = useState<any>(null)
@@ -1321,8 +1542,8 @@ function ProjectScreen({ api, host, token, initialProject, goBack, refreshProjec
         <TabButton active={tab === 'files'} icon="document-text" label="Files" onPress={() => setTab('files')} />
       </View>
 
-      {tab === 'output' && <OutputPanel host={host} token={token} projectId={project.id} initialLines={status?.output || status?.logs || []} />}
-      {tab === 'terminal' && <TerminalPanel host={host} token={token} projectId={project.id} />}
+      {tab === 'output' && <OutputPanel host={host} mode={mode} token={token} projectId={project.id} initialLines={status?.output || status?.logs || []} />}
+      {tab === 'terminal' && <TerminalPanel host={host} mode={mode} token={token} projectId={project.id} />}
       {tab === 'git' && <GitPanel api={api} projectId={project.id} />}
       {tab === 'files' && <FilesPanel api={api} projectId={project.id} />}
     </View>
@@ -1347,12 +1568,12 @@ function TabButton({ active, icon, label, onPress }: { active: boolean; icon: ke
   )
 }
 
-function useAuthedSocket(host: string, token: string | null) {
+function useAuthedSocket(host: string, token: string | null, enabled = true) {
   const socketRef = useRef<Socket | null>(null)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    if (!token) return
+    if (!enabled || !token) return
     const socket = io(host, { auth: { token }, transports: ['websocket'] })
     socketRef.current = socket
     socket.on('connect', () => setConnected(true))
@@ -1361,14 +1582,14 @@ function useAuthedSocket(host: string, token: string | null) {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [host, token])
+  }, [host, token, enabled])
 
   return { socketRef, connected }
 }
 
-function OutputPanel({ host, token, projectId, initialLines }: { host: string; token: string | null; projectId: string; initialLines: string[] }) {
+function OutputPanel({ host, mode, token, projectId, initialLines }: { host: string; mode: ConnectionMode; token: string | null; projectId: string; initialLines: string[] }) {
   const [lines, setLines] = useState<string[]>(initialLines.slice(-200))
-  const { socketRef, connected } = useAuthedSocket(host, token)
+  const { socketRef, connected } = useAuthedSocket(host, token, mode === 'local')
 
   useEffect(() => {
     setLines(initialLines.slice(-200))
@@ -1387,13 +1608,13 @@ function OutputPanel({ host, token, projectId, initialLines }: { host: string; t
     }
   }, [projectId, socketRef, connected])
 
-  return <LogBox lines={lines} empty="No process output yet." footer={connected ? 'Live output connected' : 'Waiting for stream'} />
+  return <LogBox lines={lines} empty="No process output yet." footer={mode === 'cloud' ? 'Cloud snapshot output' : connected ? 'Live output connected' : 'Waiting for stream'} />
 }
 
-function TerminalPanel({ host, token, projectId }: { host: string; token: string | null; projectId: string }) {
+function TerminalPanel({ host, mode, token, projectId }: { host: string; mode: ConnectionMode; token: string | null; projectId: string }) {
   const [lines, setLines] = useState<string[]>([])
   const [command, setCommand] = useState('')
-  const { socketRef, connected } = useAuthedSocket(host, token)
+  const { socketRef, connected } = useAuthedSocket(host, token, mode === 'local')
 
   useEffect(() => {
     const socket = socketRef.current
@@ -1408,6 +1629,10 @@ function TerminalPanel({ host, token, projectId }: { host: string; token: string
       socket.off('terminal:error')
     }
   }, [projectId, socketRef, connected])
+
+  if (mode === 'cloud') {
+    return <NoticePanel text="Terminal is local-only for now. Cloud mode can queue project start, stop, restart, git pull, and git push through the Hub." />
+  }
 
   function sendCommand() {
     if (!command.trim()) return
