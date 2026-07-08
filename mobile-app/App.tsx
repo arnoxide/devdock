@@ -1658,26 +1658,52 @@ function GitPanel({ api, projectId }: { api: Api; projectId: string }) {
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => setData(await api.gitStatus(projectId)), [api, projectId])
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setData(await api.gitStatus(projectId))
+      setError(null)
+    } catch (err: any) {
+      setData(null)
+      setError(err.message || 'Could not load git status')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [api, projectId])
 
   useEffect(() => {
     load().catch((err) => Alert.alert('Git', err.message))
   }, [load])
 
   const files: GitFile[] = data?.files || data?.changes || []
+  const ready = !!data && !loading && !error
+  const canCommit = ready && !!message.trim() && !busy
+  const cloudAction = api.mode === 'cloud'
 
   async function action(name: 'pull' | 'push' | 'commit') {
+    if (!ready && name !== 'commit') return
+    if (name === 'commit' && !canCommit) return
     setBusy(name)
     try {
-      if (name === 'pull') await api.gitPull(projectId)
-      if (name === 'push') await api.gitPush(projectId)
+      if (name === 'pull') {
+        await api.gitPull(projectId)
+        Alert.alert('Git', cloudAction ? 'Pull queued. Your desktop agent will run it on the next cloud sync.' : 'Pull complete.')
+      }
+      if (name === 'push') {
+        await api.gitPush(projectId)
+        Alert.alert('Git', cloudAction ? 'Push queued. Your desktop agent will run it on the next cloud sync.' : 'Push complete.')
+      }
       if (name === 'commit') {
         if (!message.trim()) throw new Error('Commit message required')
         if (selected.size > 0) await api.gitStage(projectId, Array.from(selected))
         await api.gitCommit(projectId, message.trim())
         setMessage('')
         setSelected(new Set())
+        Alert.alert('Git', 'Commit complete.')
       }
       await load()
     } catch (err: any) {
@@ -1690,12 +1716,15 @@ function GitPanel({ api, projectId }: { api: Api; projectId: string }) {
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.panelContent}>
       <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>{data?.branch || 'Git'}</Text>
-        <Pressable onPress={load} style={styles.iconButton}><Ionicons name="refresh" size={20} color={palette.text} /></Pressable>
+        <Text style={styles.sectionTitle}>{loading ? 'Loading Git...' : data?.branch || 'Git'}</Text>
+        <Pressable onPress={() => load().catch((err) => Alert.alert('Git', err.message))} style={styles.iconButton} disabled={loading}>
+          {loading ? <ActivityIndicator color={palette.blue} /> : <Ionicons name="refresh" size={20} color={palette.text} />}
+        </Pressable>
       </View>
+      {error ? <NoticePanel text={error} /> : null}
       <View style={styles.actionRow}>
-        <ActionButton icon="download" label="Pull" color={palette.text} disabled={!!busy} busy={busy === 'pull'} onPress={() => action('pull')} />
-        <ActionButton icon="cloud-upload" label="Push" color={palette.blue} disabled={!!busy} busy={busy === 'push'} onPress={() => action('push')} />
+        <ActionButton icon="download" label="Pull" color={palette.text} disabled={!ready || !!busy} busy={busy === 'pull'} onPress={() => action('pull')} />
+        <ActionButton icon="cloud-upload" label="Push" color={palette.blue} disabled={!ready || !!busy} busy={busy === 'push'} onPress={() => action('push')} />
       </View>
       <Text style={styles.label}>Changes</Text>
       {files.length === 0 ? <Text style={styles.mutedText}>Working tree is clean.</Text> : files.map((file) => {
@@ -1713,7 +1742,7 @@ function GitPanel({ api, projectId }: { api: Api; projectId: string }) {
         )
       })}
       <TextInput value={message} onChangeText={setMessage} placeholder="Commit message" placeholderTextColor={palette.muted} style={styles.input} />
-      <Pressable style={[styles.primaryButton, !!busy && styles.disabled]} disabled={!!busy} onPress={() => action('commit')}>
+      <Pressable style={[styles.primaryButton, !canCommit && styles.disabled]} disabled={!canCommit} onPress={() => action('commit')}>
         {busy === 'commit' ? <ActivityIndicator color="#fff" /> : <Ionicons name="git-commit" size={18} color="#fff" />}
         <Text style={styles.primaryButtonText}>Commit Selected</Text>
       </Pressable>

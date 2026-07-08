@@ -52,8 +52,9 @@ interface GitStore {
     // SSH
     loadSshKey: () => Promise<void>
     loadAllSshKeys: () => Promise<void>
-    generateSshKey: (email: string) => Promise<void>
-    testSshConnection: () => Promise<{ success: boolean; message: string }>
+    generateSshKey: (email: string, name?: string) => Promise<void>
+    deleteSshKey: (name: string) => Promise<void>
+    testSshConnection: (name?: string) => Promise<{ success: boolean; message: string }>
 }
 
 export const useGitStore = create<GitStore>((set, get) => ({
@@ -188,12 +189,18 @@ export const useGitStore = create<GitStore>((set, get) => ({
         set({ allSshKeys: keys })
     },
 
-    generateSshKey: async (email: string) => {
-        await window.api.sshGenerateKey(email)
+    generateSshKey: async (email: string, name?: string) => {
+        await window.api.sshGenerateKey(email, name)
         await get().loadSshKey()
+        await get().loadAllSshKeys()
     },
 
-    testSshConnection: async () => {
-        return window.api.sshTestConnection()
+    deleteSshKey: async (name: string) => {
+        await window.api.sshDeleteKey(name)
+        await get().loadAllSshKeys()
+    },
+
+    testSshConnection: async (name?: string) => {
+        return window.api.sshTestConnection(name)
     }
 }))

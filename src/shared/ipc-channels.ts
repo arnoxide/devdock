@@ -164,6 +164,7 @@ export const IPC = {
   SSH_GENERATE_KEY: 'ssh:generate-key',
   SSH_TEST_CONNECTION: 'ssh:test-connection',
   SSH_LIST_KEYS: 'ssh:list-keys',
+  SSH_DELETE_KEY: 'ssh:delete-key',
 
   // Security Vault
   VAULT_GET_VAULTS: 'vault:get-vaults',

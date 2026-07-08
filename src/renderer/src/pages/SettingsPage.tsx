@@ -6,7 +6,7 @@ import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
 import Button from '../components/ui/Button'
 import Dialog from '../components/ui/Dialog'
-import { AlertTriangle, Download, RotateCcw, GitBranch, Key, Copy, CheckCircle, RefreshCw, Cloud } from 'lucide-react'
+import { AlertTriangle, Download, RotateCcw, GitBranch, Key, Copy, CheckCircle, RefreshCw, Cloud, Plus, Trash2, XCircle } from 'lucide-react'
 
 interface CloudSyncStatus {
   enabled: boolean
@@ -27,16 +27,23 @@ export default function SettingsPage() {
   const resetSettings = useSettingsStore((s) => s.resetSettings)
 
   const sshKey = useGitStore((s) => s.sshKey)
+  const allSshKeys = useGitStore((s) => s.allSshKeys)
   const loadSshKey = useGitStore((s) => s.loadSshKey)
+  const loadAllSshKeys = useGitStore((s) => s.loadAllSshKeys)
   const generateSshKey = useGitStore((s) => s.generateSshKey)
+  const deleteSshKey = useGitStore((s) => s.deleteSshKey)
   const testSshConnection = useGitStore((s) => s.testSshConnection)
 
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isGeneratingKey, setIsGeneratingKey] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [isTesting, setIsTesting] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [showAddKeyForm, setShowAddKeyForm] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [newKeyEmail, setNewKeyEmail] = useState('')
+  const [keyDetails, setKeyDetails] = useState<Record<string, { publicKey: string; hasKey: boolean }>>({})
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
+  const [testingKey, setTestingKey] = useState<string | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [cloudStatus, setCloudStatus] = useState<CloudSyncStatus | null>(null)
   const [cloudHubUrl, setCloudHubUrl] = useState('')
   const [cloudAgentToken, setCloudAgentToken] = useState('')
@@ -47,8 +54,20 @@ export default function SettingsPage() {
   useEffect(() => {
     loadSettings()
     loadSshKey()
+    loadAllSshKeys()
     loadCloudSync()
   }, [])
+
+  useEffect(() => {
+    // id_rsa is covered by sshKey already; fetch details for any additional named keys.
+    allSshKeys
+      .filter((k) => k.name !== 'id_rsa' && !keyDetails[k.name])
+      .forEach((k) => {
+        window.api.sshGetKey(k.name).then((info) => {
+          setKeyDetails((prev) => ({ ...prev, [k.name]: info as { publicKey: string; hasKey: boolean } }))
+        })
+      })
+  }, [allSshKeys])
 
   const loadCloudSync = async () => {
     const status = await window.api.getCloudSyncStatus()
@@ -82,22 +101,50 @@ export default function SettingsPage() {
     }
   }
 
-  const handleTestConnection = async () => {
-    setIsTesting(true)
+  const handleAddNamedKey = async () => {
+    if (!newKeyName.trim() || !newKeyEmail.trim()) return
+    setIsGeneratingKey(true)
     try {
-      const result = await testSshConnection()
-      setTestResult(result)
+      await generateSshKey(newKeyEmail.trim(), newKeyName.trim())
+      setNewKeyName('')
+      setNewKeyEmail('')
+      setShowAddKeyForm(false)
     } finally {
-      setIsTesting(false)
+      setIsGeneratingKey(false)
     }
   }
 
-  const copyToClipboard = () => {
-    if (sshKey?.publicKey) {
-      navigator.clipboard.writeText(sshKey.publicKey)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+  const handleDeleteKey = async (name: string) => {
+    if (!confirm(`Delete SSH key "${name}"? This removes it from this machine only, not from GitHub.`)) return
+    await deleteSshKey(name)
+    setKeyDetails((prev) => {
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+    setTestResults((prev) => {
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+  }
+
+  const handleTestConnection = async (name?: string) => {
+    const key = name || 'id_rsa'
+    setTestingKey(key)
+    try {
+      const result = await testSshConnection(name)
+      setTestResults((prev) => ({ ...prev, [key]: result }))
+    } finally {
+      setTestingKey(null)
     }
+  }
+
+  const copyKeyToClipboard = (name: string, publicKey: string) => {
+    if (!publicKey) return
+    navigator.clipboard.writeText(publicKey)
+    setCopiedKey(name)
+    setTimeout(() => setCopiedKey(null), 2000)
   }
 
   const saveCloudSync = async (enabled?: boolean) => {
@@ -446,110 +493,136 @@ export default function SettingsPage() {
         </div>
 
         <Card>
-          <CardBody className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
+          <CardBody className="space-y-6">
+            <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent">
                   <Key size={20} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-dock-text">SSH Key Management</h3>
-                  <p className="text-xs text-dock-muted">Authenticate with GitHub via SSH</p>
+                  <p className="text-xs text-dock-muted">
+                    Keep one key per GitHub account. Test each independently and assign them to
+                    projects from the project's Git panel.
+                  </p>
                 </div>
               </div>
-
-              {!sshKey?.hasKey ? (
-                <div className="p-4 rounded-xl border border-dashed border-dock-border bg-dock-bg/30 text-center space-y-3">
-                  <p className="text-xs text-dock-muted italic">No SSH key found in ~/.ssh/id_rsa</p>
-                  <Button
-                    size="sm"
-                    onClick={handleGenerateKey}
-                    disabled={isGeneratingKey}
-                  >
-                    {isGeneratingKey ? 'Generating...' : 'Generate New SSH Key'}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-dock-bg border border-dock-border font-mono text-[10px] break-all relative group">
-                    <div className="max-h-24 overflow-y-auto pr-8">
-                      {sshKey.publicKey}
-                    </div>
-                    <button
-                      onClick={copyToClipboard}
-                      className="absolute top-2 right-2 p-1.5 rounded bg-dock-surface border border-dock-border text-dock-muted hover:text-dock-accent transition-colors"
-                    >
-                      {copied ? <CheckCircle size={14} className="text-dock-green" /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={copyToClipboard} className="flex-1">
-                      <Copy size={14} className="mr-2" />
-                      Copy Public Key
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={handleGenerateKey} className="text-dock-muted">
-                      Regenerate
-                    </Button>
-                  </div>
-                </div>
+              {(sshKey?.hasKey || allSshKeys.length > 0) && (
+                <Button size="sm" variant="secondary" onClick={() => setShowAddKeyForm((v) => !v)}>
+                  <Plus size={14} className="mr-1.5" />
+                  Add Key
+                </Button>
               )}
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-dock-accent/10 text-dock-accent">
-                  <GitBranch size={20} />
+            {showAddKeyForm && (
+              <div className="p-4 rounded-xl border border-dock-border bg-dock-bg/40 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="Key name"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="id_ed25519_work"
+                  />
+                  <Input
+                    label="Email (comment)"
+                    value={newKeyEmail}
+                    onChange={(e) => setNewKeyEmail(e.target.value)}
+                    placeholder="you@work.com"
+                  />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-dock-text">Git Auth Test</h3>
-                  <p className="text-xs text-dock-muted">Verify your connection to GitHub</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-dock-surface border border-dock-border space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-dock-text">GitHub (SSH)</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleTestConnection}
-                    disabled={isTesting || !sshKey?.hasKey}
-                  >
-                    {isTesting ? <RefreshCw size={14} className="animate-spin mr-2" /> : null}
-                    Test Connection
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleAddNamedKey} disabled={isGeneratingKey || !newKeyName.trim() || !newKeyEmail.trim()}>
+                    {isGeneratingKey ? 'Generating...' : 'Generate Key'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowAddKeyForm(false)}>
+                    Cancel
                   </Button>
                 </div>
-
-                {testResult && (
-                  <div className={`p-3 rounded-lg text-[11px] leading-relaxed ${testResult.success ? 'bg-dock-green/10 text-dock-green border border-dock-green/20' : 'bg-dock-red/10 text-dock-red border border-dock-red/20'
-                    }`}>
-                    <p className="font-bold mb-1">{testResult.success ? 'Success' : 'Failed'}</p>
-                    <p className="opacity-90">{testResult.message}</p>
-                  </div>
-                )}
-
-                <div className="text-[10px] text-dock-muted space-y-1 mt-2">
-                  <p>• Make sure to add your public key to GitHub settings.</p>
-                  <p>• Only id_rsa is currently supported for automatic configuration.</p>
-                </div>
               </div>
+            )}
 
-              {/* Troubleshooting Info */}
-              <div className="p-4 rounded-xl bg-dock-accent/5 border border-dock-accent/10 space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={14} className="text-dock-accent" />
-                  <h4 className="text-xs font-bold text-dock-text">Why see "Key already in use"?</h4>
-                </div>
-                <p className="text-[11px] text-dock-muted leading-relaxed">
-                  If GitHub says your key is already in use, it means you've already added this public key to an account.
-                </p>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-dock-text font-medium">What to do:</p>
-                  <p className="text-[10px] text-dock-muted ml-2">1. Use the "Test Connection" button above.</p>
-                  <p className="text-[10px] text-dock-muted ml-2">2. If it succeeds, your key is ready! You don't need to add it again.</p>
-                  <p className="text-[10px] text-dock-muted ml-2">3. If it fails, check if you added the key to a different GitHub account.</p>
-                </div>
+            {!sshKey?.hasKey && allSshKeys.length === 0 ? (
+              <div className="p-4 rounded-xl border border-dashed border-dock-border bg-dock-bg/30 text-center space-y-3">
+                <p className="text-xs text-dock-muted italic">No SSH key found in ~/.ssh/id_rsa</p>
+                <Button size="sm" onClick={handleGenerateKey} disabled={isGeneratingKey}>
+                  {isGeneratingKey ? 'Generating...' : 'Generate New SSH Key'}
+                </Button>
               </div>
+            ) : (
+              <div className="space-y-4">
+                {[
+                  ...(sshKey?.hasKey ? [{ name: 'id_rsa', publicKey: sshKey.publicKey, isDefault: true }] : []),
+                  ...allSshKeys
+                    .filter((k) => k.name !== 'id_rsa')
+                    .map((k) => ({ name: k.name, publicKey: keyDetails[k.name]?.publicKey || '', isDefault: false }))
+                ].map((k) => {
+                  const result = testResults[k.name]
+                  return (
+                    <div key={k.name} className="p-4 rounded-xl bg-dock-surface border border-dock-border space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <GitBranch size={14} className="text-dock-muted shrink-0" />
+                          <span className="text-sm font-semibold text-dock-text truncate">{k.name}</span>
+                          {k.isDefault && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-dock-accent/10 text-dock-accent shrink-0">default</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleTestConnection(k.isDefault ? undefined : k.name)}
+                            disabled={testingKey === k.name}
+                          >
+                            {testingKey === k.name ? <RefreshCw size={14} className="animate-spin mr-1.5" /> : null}
+                            Test
+                          </Button>
+                          {!k.isDefault && (
+                            <Button size="sm" variant="danger" onClick={() => handleDeleteKey(k.name)}>
+                              <Trash2 size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-dock-bg border border-dock-border font-mono text-[10px] break-all relative group">
+                        <div className="max-h-20 overflow-y-auto pr-8">{k.publicKey || 'Loading...'}</div>
+                        <button
+                          onClick={() => copyKeyToClipboard(k.name, k.publicKey)}
+                          className="absolute top-2 right-2 p-1.5 rounded bg-dock-surface border border-dock-border text-dock-muted hover:text-dock-accent transition-colors"
+                        >
+                          {copiedKey === k.name ? <CheckCircle size={14} className="text-dock-green" /> : <Copy size={14} />}
+                        </button>
+                      </div>
+
+                      {result && (
+                        <div className={`p-3 rounded-lg text-[11px] leading-relaxed flex items-start gap-2 ${result.success ? 'bg-dock-green/10 text-dock-green border border-dock-green/20' : 'bg-dock-red/10 text-dock-red border border-dock-red/20'
+                          }`}>
+                          {result.success ? <CheckCircle size={14} className="shrink-0 mt-0.5" /> : <XCircle size={14} className="shrink-0 mt-0.5" />}
+                          <div>
+                            <p className="font-bold mb-1">{result.success ? 'Success' : 'Failed'}</p>
+                            <p className="opacity-90">{result.message}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="p-4 rounded-xl bg-dock-accent/5 border border-dock-accent/10 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={14} className="text-dock-accent" />
+                <h4 className="text-xs font-bold text-dock-text">Multiple GitHub accounts</h4>
+              </div>
+              <p className="text-[11px] text-dock-muted leading-relaxed">
+                Generate one key per account, add each public key to the matching GitHub account's
+                SSH settings, then verify with "Test". Open a project's Git panel to pin that
+                project to a specific key and GitHub account — pushes and pulls for that project
+                will use them automatically, no manual switching required.
+              </p>
             </div>
           </CardBody>
         </Card>

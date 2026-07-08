@@ -165,10 +165,11 @@ const api = {
   gitCreatePullRequest: (request: unknown) => ipcRenderer.invoke(IPC.GIT_CREATE_PR, request),
 
   // SSH
-  sshGetKey: () => ipcRenderer.invoke(IPC.SSH_GET_KEY),
-  sshGenerateKey: (email: string) => ipcRenderer.invoke(IPC.SSH_GENERATE_KEY, email),
-  sshTestConnection: () => ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION),
+  sshGetKey: (name?: string) => ipcRenderer.invoke(IPC.SSH_GET_KEY, name),
+  sshGenerateKey: (email: string, name?: string) => ipcRenderer.invoke(IPC.SSH_GENERATE_KEY, email, name),
+  sshTestConnection: (name?: string) => ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION, name),
   sshListKeys: () => ipcRenderer.invoke(IPC.SSH_LIST_KEYS),
+  sshDeleteKey: (name: string) => ipcRenderer.invoke(IPC.SSH_DELETE_KEY, name),
 
   // Security Vault
   vaultGetVaults: () => ipcRenderer.invoke(IPC.VAULT_GET_VAULTS),

@@ -138,6 +138,7 @@ export class GitHubService extends EventEmitter {
     head: string
     base: string
     draft?: boolean
+    tokenOverride?: string
   }): Promise<{
     number: number
     title: string
@@ -146,12 +147,12 @@ export class GitHubService extends EventEmitter {
     headBranch: string
     baseBranch: string
   }> {
-    const creds = this.getSettings().credentials
-    if (!creds?.token) throw new Error('Connect a GitHub account before creating a pull request.')
+    const token = input.tokenOverride || this.getSettings().credentials?.token
+    if (!token) throw new Error('Connect a GitHub account before creating a pull request.')
 
     const pr = await this.fetchApi<any>(
       `/repos/${input.owner}/${input.repo}/pulls`,
-      creds.token,
+      token,
       'POST',
       {
         title: input.title,

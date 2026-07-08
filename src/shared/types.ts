@@ -37,6 +37,12 @@ export interface ProjectConfig {
   openCount: number
   parentId?: string // ID of parent group/folder
   isGroup?: boolean // True if this is a folder group (not a runnable project)
+  gitIdentity?: ProjectGitIdentity
+}
+
+export interface ProjectGitIdentity {
+  githubUsername?: string // which saved GitHub account's token to use for HTTPS push/pull/PR
+  sshKeyName?: string // which ~/.ssh key (e.g. "id_rsa", "id_ed25519_work") to use for SSH push/pull
 }
 
 export interface CloneProjectRequest {

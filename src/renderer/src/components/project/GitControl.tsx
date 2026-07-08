@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useGitStore } from '../../stores/git-store'
 import { useGitHubStore } from '../../stores/github-store'
+import { useProjectStore } from '../../stores/project-store'
 import { GitCreatePullRequestResult, GitFileStatus } from '../../../../shared/types'
 import Button from '../ui/Button'
 import Card, { CardBody } from '../ui/Card'
@@ -81,6 +82,10 @@ export default function GitControl({ projectId }: GitControlProps) {
     const githubCredentials = useGitHubStore((s) => s.credentials)
     const githubAccounts = useGitHubStore((s) => s.accounts)
     const switchGitHubAccount = useGitHubStore((s) => s.switchAccount)
+    const allSshKeys = useGitStore((s) => s.allSshKeys)
+    const loadAllSshKeys = useGitStore((s) => s.loadAllSshKeys)
+    const project = useProjectStore((s) => s.projects.find((p) => p.id === projectId))
+    const updateProject = useProjectStore((s) => s.updateProject)
 
     const [commitMessage, setCommitMessage] = useState('')
     const [isCommitting, setIsCommitting] = useState(false)
@@ -96,9 +101,11 @@ export default function GitControl({ projectId }: GitControlProps) {
     const [prDraft, setPrDraft] = useState(false)
     const [prError, setPrError] = useState<string | null>(null)
     const [createdPr, setCreatedPr] = useState<GitCreatePullRequestResult | null>(null)
+    const [isSavingIdentity, setIsSavingIdentity] = useState(false)
 
     useEffect(() => {
         loadStatus(projectId)
+        loadAllSshKeys()
     }, [projectId])
 
     const handleCommit = async () => {
@@ -136,6 +143,30 @@ export default function GitControl({ projectId }: GitControlProps) {
             await switchGitHubAccount(username)
         } finally {
             setIsSwitchingAccount(false)
+        }
+    }
+
+    const handleSetProjectGitHubAccount = async (username: string) => {
+        setIsSavingIdentity(true)
+        try {
+            await updateProject({
+                id: projectId,
+                gitIdentity: { ...project?.gitIdentity, githubUsername: username || undefined }
+            })
+        } finally {
+            setIsSavingIdentity(false)
+        }
+    }
+
+    const handleSetProjectSshKey = async (sshKeyName: string) => {
+        setIsSavingIdentity(true)
+        try {
+            await updateProject({
+                id: projectId,
+                gitIdentity: { ...project?.gitIdentity, sshKeyName: sshKeyName || undefined }
+            })
+        } finally {
+            setIsSavingIdentity(false)
         }
     }
 
@@ -528,30 +559,76 @@ export default function GitControl({ projectId }: GitControlProps) {
 
                 {/* Sidebar */}
                 <div className="space-y-5">
-                    {githubAccounts.length > 0 && (
+                    {(githubAccounts.length > 0 || allSshKeys.length > 0) && (
                         <Card>
                             <div className="p-4 border-b border-dock-border">
                                 <h3 className="text-sm font-bold text-dock-text flex items-center gap-2">
                                     <Github size={14} className="text-dock-accent" />
-                                    GitHub Account
+                                    Git Identity for this Project
                                 </h3>
                             </div>
-                            <CardBody className="space-y-3">
-                                <select
-                                    value={githubCredentials?.username || ''}
-                                    onChange={(e) => handleSwitchGitHubAccount(e.target.value)}
-                                    disabled={isSwitchingAccount}
-                                    className="w-full px-3 py-2 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-2 focus:ring-dock-accent/40"
-                                >
-                                    {githubAccounts.map((account) => (
-                                        <option key={account.username} value={account.username}>
-                                            {account.username}
-                                        </option>
-                                    ))}
-                                </select>
+                            <CardBody className="space-y-4">
+                                {githubAccounts.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-medium text-dock-muted">GitHub account (HTTPS push/pull/PR)</label>
+                                        <select
+                                            value={project?.gitIdentity?.githubUsername || ''}
+                                            onChange={(e) => handleSetProjectGitHubAccount(e.target.value)}
+                                            disabled={isSavingIdentity}
+                                            className="w-full px-3 py-2 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-2 focus:ring-dock-accent/40"
+                                        >
+                                            <option value="">Use globally active account ({githubCredentials?.username || 'none'})</option>
+                                            {githubAccounts.map((account) => (
+                                                <option key={account.username} value={account.username}>
+                                                    {account.username}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {allSshKeys.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-medium text-dock-muted">SSH key (for git@github.com remotes)</label>
+                                        <select
+                                            value={project?.gitIdentity?.sshKeyName || ''}
+                                            onChange={(e) => handleSetProjectSshKey(e.target.value)}
+                                            disabled={isSavingIdentity}
+                                            className="w-full px-3 py-2 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-2 focus:ring-dock-accent/40"
+                                        >
+                                            <option value="">Use system default (~/.ssh/id_rsa)</option>
+                                            {allSshKeys.map((key) => (
+                                                <option key={key.name} value={key.name}>
+                                                    {key.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
                                 <p className="text-[11px] text-dock-muted leading-relaxed">
-                                    Active for DevDock GitHub data. Git push and pull still use this repo's configured remote and your local Git credentials.
+                                    Pinned here, this project always pushes/pulls with this account and key, whichever
+                                    account is globally active elsewhere in DevDock. Leave unset to follow the
+                                    globally active account below instead.
                                 </p>
+
+                                {githubAccounts.length > 0 && (
+                                    <div className="pt-2 border-t border-dock-border/60 space-y-1.5">
+                                        <label className="text-[11px] font-medium text-dock-muted">Globally active account (PRs, notifications, Actions)</label>
+                                        <select
+                                            value={githubCredentials?.username || ''}
+                                            onChange={(e) => handleSwitchGitHubAccount(e.target.value)}
+                                            disabled={isSwitchingAccount}
+                                            className="w-full px-3 py-2 text-sm bg-dock-bg border border-dock-border rounded-lg text-dock-text focus:outline-none focus:ring-2 focus:ring-dock-accent/40"
+                                        >
+                                            {githubAccounts.map((account) => (
+                                                <option key={account.username} value={account.username}>
+                                                    {account.username}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </CardBody>
                         </Card>
                     )}

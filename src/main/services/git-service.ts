@@ -7,12 +7,22 @@ import { githubService } from './github-service'
 const execAsync = promisify(exec)
 
 const MAX_BUFFER = 10 * 1024 * 1024 // 10MB
+// BatchMode disables all interactive ssh prompts (passphrase, host key
+// confirmation) so a locked/unregistered key fails fast with clear stderr
+// instead of falling back to $SSH_ASKPASS, which usually isn't installed.
+const NONINTERACTIVE_SSH_COMMAND = 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10'
 const GIT_ENV = {
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'never',
     GIT_ASKPASS: 'echo',
-    SSH_ASKPASS: 'echo'
+    SSH_ASKPASS: 'echo',
+    GIT_SSH_COMMAND: NONINTERACTIVE_SSH_COMMAND
+}
+
+export interface GitIdentity {
+    token?: string
+    sshKeyPath?: string
 }
 
 export class GitService {
@@ -29,22 +39,36 @@ export class GitService {
         return Boolean(remoteUrl && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?$/i.test(remoteUrl.trim()))
     }
 
-    private getGitHubTokenEnv(remoteUrl: string | null): NodeJS.ProcessEnv {
-        const token = this.isGitHubHttpsRemote(remoteUrl) ? githubService.getCredentials()?.token : undefined
+    private isGitHubSshRemote(remoteUrl: string | null): boolean {
+        return Boolean(remoteUrl && /^(git@github\.com:|ssh:\/\/git@github\.com\/)/i.test(remoteUrl.trim()))
+    }
 
-        if (!token) return GIT_ENV
+    private getGitHubTokenEnv(remoteUrl: string | null, identity?: GitIdentity): NodeJS.ProcessEnv {
+        const isHttps = this.isGitHubHttpsRemote(remoteUrl)
+        const token = isHttps ? (identity?.token ?? githubService.getCredentials()?.token) : undefined
+        const sshKeyPath = this.isGitHubSshRemote(remoteUrl) ? identity?.sshKeyPath : undefined
+
+        let env = GIT_ENV
+        if (sshKeyPath) {
+            env = {
+                ...env,
+                GIT_SSH_COMMAND: `${NONINTERACTIVE_SSH_COMMAND} -i "${sshKeyPath}" -o IdentitiesOnly=yes`
+            }
+        }
+
+        if (!token) return env
 
         return {
-            ...GIT_ENV,
+            ...env,
             GIT_CONFIG_COUNT: '1',
             GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
             GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`
         }
     }
 
-    private async getNetworkGitEnv(projectPath: string): Promise<NodeJS.ProcessEnv> {
+    private async getNetworkGitEnv(projectPath: string, identity?: GitIdentity): Promise<NodeJS.ProcessEnv> {
         const remoteUrl = await this.getRemote(projectPath)
-        return this.getGitHubTokenEnv(remoteUrl)
+        return this.getGitHubTokenEnv(remoteUrl, identity)
     }
 
     private gitError(err: any, fallback: string): Error {
@@ -105,7 +129,7 @@ export class GitService {
         }
     }
 
-    async getStatus(projectPath: string): Promise<GitStatus> {
+    async getStatus(projectPath: string, identity?: GitIdentity): Promise<GitStatus> {
         const isRepo = await this.isRepo(projectPath)
         if (!isRepo) {
             return {
@@ -174,7 +198,7 @@ export class GitService {
                 if (hasUpstream) {
                     // Try fetch but don't fail if no remote exists
                     try {
-                        const env = await this.getNetworkGitEnv(projectPath)
+                        const env = await this.getNetworkGitEnv(projectPath, identity)
                         await this.runGit(projectPath, 'git fetch', 5000, env).catch(() => { })
                     } catch { }
 
@@ -277,7 +301,7 @@ export class GitService {
         await this.runGit(projectPath, `git commit -m "${message.replace(/"/g, '\\"')}"`)
     }
 
-    async push(projectPath: string): Promise<void> {
+    async push(projectPath: string, identity?: GitIdentity): Promise<void> {
         // Check if upstream is set; if not, push with -u to set it.
         let hasUpstream = false
         try {
@@ -289,7 +313,7 @@ export class GitService {
 
         if (hasUpstream) {
             try {
-                const env = await this.getNetworkGitEnv(projectPath)
+                const env = await this.getNetworkGitEnv(projectPath, identity)
                 await this.runGit(projectPath, 'git push', 30000, env)
             } catch (err: any) {
                 throw this.gitError(err, 'Git push failed.')
@@ -299,14 +323,14 @@ export class GitService {
 
         const { stdout: branch } = await this.runGit(projectPath, 'git rev-parse --abbrev-ref HEAD')
         try {
-            const env = await this.getNetworkGitEnv(projectPath)
+            const env = await this.getNetworkGitEnv(projectPath, identity)
             await this.runGit(projectPath, `git push -u origin ${branch.trim()}`, 30000, env)
         } catch (err: any) {
             throw this.gitError(err, 'Git push failed.')
         }
     }
 
-    async pull(projectPath: string, options: { rebase?: boolean } = {}): Promise<GitOperationResult> {
+    async pull(projectPath: string, options: { rebase?: boolean } = {}, identity?: GitIdentity): Promise<GitOperationResult> {
         // Check if upstream is set before pulling
         try {
             await this.runGit(projectPath, 'git rev-parse --abbrev-ref --symbolic-full-name @{u}')
@@ -315,7 +339,7 @@ export class GitService {
         }
 
         try {
-            const env = await this.getNetworkGitEnv(projectPath)
+            const env = await this.getNetworkGitEnv(projectPath, identity)
             const command = options.rebase ? 'git pull --rebase' : 'git pull --no-rebase'
             const { stdout, stderr } = await this.runGit(projectPath, command, 30000, env)
             return this.formatGitResult(options.rebase ? 'Rebased onto remote changes' : 'Pulled latest changes', stdout, stderr)
@@ -324,10 +348,10 @@ export class GitService {
         }
     }
 
-    async sync(projectPath: string): Promise<GitOperationResult> {
+    async sync(projectPath: string, identity?: GitIdentity): Promise<GitOperationResult> {
         try {
-            const pullResult = await this.pull(projectPath)
-            await this.push(projectPath)
+            const pullResult = await this.pull(projectPath, {}, identity)
+            await this.push(projectPath, identity)
             return {
                 title: 'Sync complete',
                 output: pullResult.output
